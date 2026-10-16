@@ -5,9 +5,12 @@
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { webcrypto as crypto } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const TOML = new URL("../wrangler.toml", import.meta.url);
 const CONFIG = new URL("../../threecircles/config.js", import.meta.url);
+// Call wrangler from node_modules directly, so this works however pnpm was launched.
+const WRANGLER = JSON.stringify(fileURLToPath(new URL("../node_modules/.bin/wrangler", import.meta.url)));
 const run = (cmd, input) => execSync(cmd, { encoding: "utf8", input, stdio: [input ? "pipe" : "inherit", "pipe", "inherit"] });
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 
@@ -15,7 +18,7 @@ let toml = readFileSync(TOML, "utf8");
 
 if (toml.includes("REPLACE_WITH_KV_ID")) {
   console.log("Creating storage for reminder schedules…");
-  const out = run("pnpm exec wrangler kv namespace create SUBS");
+  const out = run(WRANGLER + " kv namespace create SUBS");
   const id = (out.match(/id\s*[=:]\s*"?([0-9a-f]{32})"?/) || [])[1];
   if (!id) { console.error(out); throw new Error("Couldn't read the new KV namespace id from wrangler's output."); }
   toml = toml.replace("REPLACE_WITH_KV_ID", id);
@@ -34,13 +37,13 @@ if (/VAPID_PUBLIC_KEY = ""/.test(toml)) {
 }
 
 console.log("Deploying…");
-const deployOut = run("pnpm exec wrangler deploy");
+const deployOut = run(WRANGLER + " deploy");
 process.stdout.write(deployOut);
 const url = (deployOut.match(/https:\/\/[\w.-]+\.workers\.dev/) || [])[0];
 
 if (newKeys) {
   console.log("Saving the private key as a secret…");
-  run("pnpm exec wrangler secret put VAPID_PRIVATE_JWK", newKeys.privateJwk);
+  run(WRANGLER + " secret put VAPID_PRIVATE_JWK", newKeys.privateJwk);
 }
 
 const publicKey = toml.match(/VAPID_PUBLIC_KEY = "([^"]+)"/)[1];
