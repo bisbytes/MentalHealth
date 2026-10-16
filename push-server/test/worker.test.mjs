@@ -59,3 +59,36 @@ test("subscribe, then cron sends once per slot", async () => {
   assert.equal((await post("/unsubscribe", { subscription })).status, 200);
   assert.equal(env.SUBS.m.size, 0);
 });
+
+test("boosted schedule sends more often until it expires", async () => {
+  const v = await makeVapid();
+  const env = { SUBS: memoryKV(), ALLOWED_ORIGINS: "https://mentalhealth.bisbytes.com", VAPID_PUBLIC_KEY: v.publicKey, VAPID_PRIVATE_JWK: JSON.stringify(v.jwk), VAPID_SUBJECT: "https://mentalhealth.bisbytes.com" };
+  const ua = createECDH("prime256v1"); ua.generateKeys();
+  const subscription = { endpoint: "https://fcm.googleapis.com/fcm/send/boost", keys: { p256dh: b64urlEncode(ua.getPublicKey()), auth: b64urlEncode(randomBytes(16)) } };
+  const boostUntil = Date.now() + 3600 * 1000;
+  const res = await worker.fetch(new Request("https://w.dev/subscribe", { method: "POST", headers: { Origin: "https://mentalhealth.bisbytes.com" }, body: JSON.stringify({ subscription, schedule: { every: 120, start: 0, end: 23, tz: "UTC", boostEvery: 60, boostUntil } }) }), env);
+  assert.equal(res.status, 200);
+
+  const sent = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { sent.push(url); return new Response(null, { status: 201 }); };
+  try {
+    const run = async (ms) => { let p; await worker.scheduled({ scheduledTime: ms }, env, { waitUntil: (x) => { p = x; } }); await p; };
+    // Find the next odd hour (a boost-only slot) before the boost ends, and one after it ends
+    const oddHour = (from) => { const d = new Date(from); d.setUTCMinutes(0, 0, 0); do { d.setUTCHours(d.getUTCHours() + 1); } while (d.getUTCHours() % 2 === 0); return d.getTime(); };
+    const during = oddHour(Date.now() - 3600 * 1000);
+    if (during < boostUntil) { await run(during); assert.equal(sent.length, 1); }
+    const after = oddHour(boostUntil);
+    await run(after);
+    assert.equal(sent.length, during < boostUntil ? 1 : 0);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+test("boost validation", async () => {
+  const { validSchedule } = await import("../src/index.js");
+  const base = { every: 120, start: 9, end: 21, tz: "UTC" };
+  assert.equal(validSchedule({ ...base, boostEvery: 60, boostUntil: Date.now() + 1000 }).boostEvery, 60);
+  assert.equal(validSchedule({ ...base, boostEvery: 240, boostUntil: Date.now() + 1000 }), null);
+  assert.equal(validSchedule({ ...base, boostEvery: 60, boostUntil: Date.now() + 72 * 3600 * 1000 }), null);
+  assert.equal(validSchedule({ ...base, boostEvery: 60, boostUntil: Date.now() - 1000 }).boostEvery, undefined);
+});

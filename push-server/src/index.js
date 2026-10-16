@@ -13,6 +13,13 @@ const PUSH_HOSTS = [
 ];
 const EVERY_OPTIONS = [30, 60, 120, 180, 240];
 const MAX_SUBSCRIPTIONS = 20;
+const BOOST_MESSAGES = [
+  "Long breath out. Which circle are you in?",
+  "You're not alone in this. How are you right now?",
+  "Feet on the floor, shoulders down. Where are you now?",
+  "Be gentle with yourself. Which circle feels closest?",
+];
+const MAX_BOOST_MS = 48 * 3600 * 1000;
 const MESSAGES = [
   "Which circle are you in right now?",
   "A gentle pause. How are you feeling?",
@@ -80,11 +87,12 @@ async function sendDue(env, now) {
       const record = await env.SUBS.get(name, "json");
       if (!record) continue;
       const local = localTime(now, record.tz);
-      const slot = slots(record).find((s) => local.minutes >= s && local.minutes < s + 15);
+      const boosted = isBoosted(record, now);
+      const slot = slots(boosted ? { ...record, every: record.boostEvery } : record).find((s) => local.minutes >= s && local.minutes < s + 15);
       if (slot === undefined) continue;
       const stamp = `${local.date} ${slot}`;
       if (record.last === stamp) continue;
-      const status = await sendPush(record.subscription, notification(), vapid(env));
+      const status = await sendPush(record.subscription, notification(null, boosted), vapid(env));
       if (status === 404 || status === 410) { await env.SUBS.delete(name); continue; }
       if (status < 300) await env.SUBS.put(name, JSON.stringify({ ...record, last: stamp }));
     }
@@ -108,10 +116,17 @@ function localTime(date, tz) {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, minutes: Number(parts.hour) * 60 + Number(parts.minute) };
 }
 
-function notification(body) {
+// Reminders come more often while the app reports a red trend. The server only
+// sees the faster interval and when it ends, never the check-ins themselves.
+function isBoosted(record, now) {
+  return Boolean(record.boostEvery && record.boostUntil && now.getTime() < record.boostUntil);
+}
+
+function notification(body, boosted) {
+  const pool = boosted ? BOOST_MESSAGES : MESSAGES;
   return JSON.stringify({
     title: "Three Circles",
-    body: body || MESSAGES[Math.floor(Math.random() * MESSAGES.length)],
+    body: body || pool[Math.floor(Math.random() * pool.length)],
   });
 }
 
@@ -135,7 +150,15 @@ function validSchedule(s) {
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > 23 || start > end) return null;
   try { new Intl.DateTimeFormat("en-US", { timeZone: s.tz }); } catch { return null; }
   if (typeof s.tz !== "string") return null;
-  return { every, start, end, tz: s.tz };
+  const out = { every, start, end, tz: s.tz };
+  if (s.boostEvery != null && s.boostUntil != null) {
+    const boostEvery = Number(s.boostEvery), boostUntil = Number(s.boostUntil);
+    const now = Date.now();
+    if (!EVERY_OPTIONS.includes(boostEvery) || boostEvery > every) return null;
+    if (!Number.isFinite(boostUntil) || boostUntil > now + MAX_BOOST_MS) return null;
+    if (boostUntil > now) Object.assign(out, { boostEvery, boostUntil });
+  }
+  return out;
 }
 
 function corsHeaders(request, env) {
@@ -155,4 +178,4 @@ async function sha256(text) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export { slots, localTime, validSchedule };
+export { slots, localTime, validSchedule, isBoosted };

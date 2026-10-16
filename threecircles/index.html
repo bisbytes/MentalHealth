@@ -187,6 +187,9 @@ select {
 }
 #reminders .btn.primary { --c: var(--drive); }
 #rem-msg { background: var(--drive-soft); border-radius: 12px; padding: 10px 14px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; font-size: .95rem; }
+.check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--drive); flex: none; }
+.boost { background: var(--red-soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .confirm { background: var(--red-soft); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 
 .notice { background: var(--drive-soft); border-radius: 12px; padding: 10px 14px; font-size: .92rem; }
@@ -297,6 +300,14 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
         </div>
       </div>
       <p class="small muted" id="rem-preview"></p>
+      <label class="check" for="rem-boost">
+        <input type="checkbox" id="rem-boost" checked>
+        <span>Remind me more often when I've been checking in red</span>
+      </label>
+      <div class="boost" id="rem-boosted" hidden>
+        <p class="small" id="rem-boosted-text"></p>
+        <button class="btn quiet" type="button" id="rem-boost-dismiss">Back to my usual schedule for today</button>
+      </div>
       <div class="row">
         <button class="btn primary" type="button" id="rem-on">Turn on reminders</button>
         <button class="btn primary" type="button" id="rem-save" hidden>Save changes</button>
@@ -447,6 +458,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     var entry = { id: uid(), zone: selected, at: new Date().toISOString(), note: $("#note").value.trim() };
     entries = load().concat([entry]);
     save(entries);
+    updateBoost();
     var t = $("#toast");
     t.innerHTML = "";
     t.style.setProperty("--c", "var(--" + entry.zone + ")");
@@ -725,11 +737,70 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   }
   function saveSchedule(sub) {
     var s = schedule();
-    return api("/subscribe", { subscription: sub.toJSON(), schedule: s }).then(function () {
-      setRemPrefs({ on: true, every: s.every, start: s.start, end: s.end });
+    var p = remPrefs();
+    var boost = boostActive(p) ? { boostEvery: boostEvery(s.every), boostUntil: p.boostUntil } : {};
+    return api("/subscribe", { subscription: sub.toJSON(), schedule: Object.assign({}, s, boost) }).then(function () {
+      setRemPrefs(Object.assign(remPrefs(), { on: true, every: s.every, start: s.start, end: s.end }));
       remUI(true, false);
+      showBoost();
     });
   }
+
+  // Red trend: more reminders for a while when recent check-ins lean red.
+  // Worked out here on the device; the server only gets the faster interval and an end time.
+  var BOOST_FOR = 24 * 3600 * 1000;
+  function redTrend(list, now) {
+    var recent = list.slice().sort(function (a, b) { return a.at < b.at ? 1 : -1; });
+    if (recent.length >= 2 && recent[0].zone === "green" && recent[1].zone === "green") return "settled";
+    var last5 = recent.slice(0, 5).filter(function (e) { return e.zone === "red"; }).length;
+    var day2 = recent.filter(function (e) { return now - Date.parse(e.at) <= 48 * 3600 * 1000; });
+    var red2 = day2.filter(function (e) { return e.zone === "red"; }).length;
+    if (last5 >= 3 || (day2.length >= 3 && red2 / day2.length > 0.5)) return "red";
+    return "neutral";
+  }
+  function boostEvery(every) { return every >= 240 ? 120 : every >= 120 ? 60 : 30; }
+  function todayKey() { return dayKey(new Date()); }
+  function boostActive(p) {
+    return p.boostOff !== true && p.boostUntil > Date.now() && p.boostDismissed !== todayKey();
+  }
+  function updateBoost(quiet) {
+    var p = remPrefs();
+    var before = boostActive(p) ? p.boostUntil : 0;
+    var trend = redTrend(load(), Date.now());
+    if (trend === "settled") p.boostUntil = 0;
+    else if (trend === "red" && p.boostOff !== true && p.boostDismissed !== todayKey()) p.boostUntil = Date.now() + BOOST_FOR;
+    setRemPrefs(p);
+    var after = boostActive(p) ? p.boostUntil : 0;
+    showBoost();
+    // Tell the server only when the boost starts, renews or ends
+    if (!quiet && p.on && !remBlocker() && (before !== after)) {
+      currentSub(false).then(function (sub) { if (sub) return saveSchedule(sub); }).catch(function () {});
+    }
+  }
+  function showBoost() {
+    var p = remPrefs();
+    $("#rem-boost").checked = p.boostOff !== true;
+    var on = p.on && boostActive(p);
+    $("#rem-boosted").hidden = !on;
+    if (on) {
+      var mins = boostEvery(schedule().every);
+      var every = mins === 30 ? "every 30 minutes" : mins === 60 ? "every hour" : "every " + (mins / 60) + " hours";
+      var until = new Date(p.boostUntil);
+      var when = (dayKey(until) === todayKey() ? "" : "tomorrow ") + "at " + fmtTime(until);
+      $("#rem-boosted-text").textContent = "You've been checking in red a lot lately, so reminders are coming " + every + " until " + when + ". Be gentle with yourself.";
+    }
+  }
+  $("#rem-boost").addEventListener("change", function () {
+    var p = remPrefs(); p.boostOff = !this.checked; if (p.boostOff) p.boostUntil = 0;
+    setRemPrefs(p);
+    if (!p.boostOff) updateBoost();
+    else { showBoost(); if (p.on && !remBlocker()) currentSub(false).then(function (sub) { if (sub) return saveSchedule(sub); }).catch(function () {}); }
+  });
+  $("#rem-boost-dismiss").addEventListener("click", function () {
+    var p = remPrefs(); p.boostDismissed = todayKey(); p.boostUntil = 0; setRemPrefs(p);
+    showBoost();
+    if (p.on && !remBlocker()) currentSub(false).then(function (sub) { if (sub) return saveSchedule(sub); }).catch(function () {});
+  });
   function busy(btn, on) { btn.disabled = on; }
 
   $("#rem-on").addEventListener("click", function () {
@@ -742,6 +813,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       if (perm !== "granted") throw new Error("Notifications are turned off for Three Circles. You can allow them in your phone's settings, then try again.");
       return currentSub(true);
     }).then(saveSchedule).then(function () {
+      updateBoost();
       remMsg("Reminders are on. You can change the schedule any time.");
     }).catch(function (e) {
       if (e && e.name === "NotAllowedError") remMsg("Notifications are turned off for Three Circles. You can allow them in your phone's settings, then try again.");
@@ -773,8 +845,8 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       if (!sub) return;
       return api("/unsubscribe", { subscription: sub.toJSON() }).catch(function () {}).then(function () { return sub.unsubscribe(); });
     }).then(function () {
-      setRemPrefs({ on: false, every: schedule().every, start: schedule().start, end: schedule().end });
-      remUI(false); remMsg("Reminders are off.");
+      setRemPrefs(Object.assign(remPrefs(), { on: false }));
+      remUI(false); showBoost(); remMsg("Reminders are off.");
     }).catch(function (e) { remMsg(e.message); }).then(function () { busy(btn, false); });
   });
   ["#rem-every", "#rem-start", "#rem-end"].forEach(function (sel) {
@@ -789,13 +861,14 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     if (p.every) { $("#rem-every").value = p.every; $("#rem-start").value = p.start; $("#rem-end").value = p.end; }
     remPreview();
     remUI(false);
+    updateBoost(true);
     if (!framed && "serviceWorker" in navigator && /^https:|^http:\/\/localhost/.test(location.href)) {
       navigator.serviceWorker.register("sw.js").catch(function () {});
     }
     if (!p.on || remBlocker()) return;
     // Re-send the schedule on each open, so a new notification address or time zone is picked up
     currentSub(false).then(function (sub) {
-      if (!sub || Notification.permission !== "granted") { setRemPrefs({ on: false, every: p.every, start: p.start, end: p.end }); return; }
+      if (!sub || Notification.permission !== "granted") { setRemPrefs(Object.assign(remPrefs(), { on: false })); return; }
       remUI(true, false);
       return saveSchedule(sub);
     }).catch(function () {});
@@ -821,7 +894,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
           entries = current.concat(added);
           save(entries);
           store.clear();
-          render(); checkBackup();
+          render(); checkBackup(); updateBoost();
         };
       };
     } catch (e) {}

@@ -24,6 +24,10 @@ Three Circles can send a gentle "which circle are you in?" notification on a sch
 
 The app has no server of its own, so reminders come from a tiny [Cloudflare Worker](push-server/) on the free plan. It stores only your device's push address, the schedule and your time zone. Check-ins and notes never leave your device.
 
+Tapping a reminder opens the app ready to check in. On phones that show three notification buttons (most Android phones), you can tap Red, Drive or Green right on the notification.
+
+When recent check-ins lean red (3 of your last 5, or more than half in the last 48 hours), reminders come twice as often for 24 hours, and two green check-ins in a row end that early. This is worked out on your device; the server only receives the faster interval and when it ends. You can switch it off in the app.
+
 On iPhone, notifications only work after you add the app to your home screen (iOS 16.4 or later) and open it from there.
 
 ### Set up the reminder server (one time)
@@ -39,7 +43,7 @@ pnpm run setup
 
 `pnpm run setup` creates the storage, makes notification keys, deploys the worker, and writes the server address into `threecircles/config.js`. Commit and push `threecircles/config.js` and `push-server/wrangler.toml` afterwards. If you host the app somewhere other than `https://mentalhealth.bisbytes.com`, change `ALLOWED_ORIGINS` in `push-server/wrangler.toml` first.
 
-Run `pnpm test` in `push-server` to check the encryption and scheduling.
+After pulling server changes, redeploy with `npx pnpm run deploy` in `push-server`. Run `pnpm test` there to check the encryption and scheduling.
 
 ## Run it
 
