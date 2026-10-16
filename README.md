@@ -18,9 +18,32 @@ Tap a circle, add a note if you like, and save. The app shows your last 7 days a
 - **Your data** lets you copy a backup (JSON), restore it on another device, or delete everything.
 - Every two weeks the app gently reminds you to back up, since clearing browser data would erase your check-ins.
 
+## Reminders
+
+Three Circles can send a gentle "which circle are you in?" notification on a schedule you choose (every 30 minutes to every 4 hours, between a start and end time). Set it in **Check-in reminders** inside the app.
+
+The app has no server of its own, so reminders come from a tiny [Cloudflare Worker](push-server/) on the free plan. It stores only your device's push address, the schedule and your time zone. Check-ins and notes never leave your device.
+
+On iPhone, notifications only work after you add the app to your home screen (iOS 16.4 or later) and open it from there.
+
+### Set up the reminder server (one time)
+
+You need Node.js 18+ and a free Cloudflare account.
+
+```sh
+cd push-server
+npm install
+npx wrangler login
+npm run setup
+```
+
+`npm run setup` creates the storage, makes notification keys, deploys the worker, and writes the server address into `threecircles/config.js`. Commit and push `threecircles/config.js` and `push-server/wrangler.toml` afterwards. If you host the app somewhere other than `https://mentalhealth.bisbytes.com`, change `ALLOWED_ORIGINS` in `push-server/wrangler.toml` first.
+
+Run `npm test` in `push-server` to check the encryption and scheduling.
+
 ## Run it
 
-The app is a single static file, `threecircles/index.html`, with no build step. Open it in a browser, or serve the repo:
+The app lives in `threecircles/` (`index.html`, a service worker for offline use and notifications, the manifest and icons) with no build step. Serve the repo:
 
 ```sh
 python3 -m http.server 8000
@@ -30,7 +53,7 @@ Then visit http://localhost:8000/threecircles/.
 
 ### Put it on your phone
 
-Host the folder anywhere that serves static files (GitHub Pages, Netlify, Cloudflare Pages), open the URL on your phone, and use "Add to Home Screen".
+It's hosted with GitHub Pages at https://mentalhealth.bisbytes.com/threecircles/. Open that on your phone and choose **Add to Home Screen** (Share menu on iPhone, ⋮ menu on Android). It gets its own three-circles icon and works offline.
 
 ## Data format
 

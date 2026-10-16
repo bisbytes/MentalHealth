@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#eef2f1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#11181b" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Three Circles">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
 <title>Three Circles</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Check in to your red, drive or green zone. Private, no account, stays on your device.">
@@ -166,6 +174,15 @@ details { background: var(--surface); border: 1px solid var(--line); border-radi
 details[open] { padding-bottom: 16px; }
 summary { font-family: var(--display); font-weight: 700; padding: 12px 0; cursor: pointer; }
 details .stack { display: flex; flex-direction: column; gap: 12px; }
+.rem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rem-grid .field:first-child { grid-column: 1 / -1; }
+.rem-grid .field { min-width: 0; }
+select {
+  font: inherit; color: inherit; width: 100%; min-height: 44px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--bg); padding: 8px 10px;
+}
+#reminders .btn.primary { --c: var(--drive); }
+#rem-msg { background: var(--drive-soft); border-radius: 12px; padding: 10px 14px; }
 .confirm { background: var(--red-soft); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 
 .notice { background: var(--drive-soft); border-radius: 12px; padding: 10px 14px; font-size: .92rem; }
@@ -173,20 +190,24 @@ details .stack { display: flex; flex-direction: column; gap: 12px; }
 
 /* Support */
 .support {
-  border-radius: 16px; padding: 16px; background: var(--green-soft);
-  display: flex; flex-direction: column; gap: 6px; font-size: .95rem;
+  border-radius: 14px; padding: 10px 14px; background: var(--green-soft); font-size: .92rem; line-height: 1.45;
 }
-.support strong { font-family: var(--display); font-size: 1.02rem; }
+.support strong { font-family: var(--display); }
 .support a, footer a { color: var(--ink); font-weight: 700; }
-.big-num { font-family: var(--display); font-weight: 700; font-size: 1.25rem; user-select: all; }
+.big-num { font-family: var(--display); font-weight: 700; font-size: 1.1rem; text-decoration: none; white-space: nowrap; }
 footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: column; gap: 4px; text-align: center; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
+<script src="config.js"></script>
 </head>
 <body>
 
 <main>
+  <aside class="support" aria-label="Crisis support">
+    <p><strong>In crisis?</strong> Call or text <a class="big-num" href="tel:988">988</a> in the US, any time. If you're in danger, call 911. Elsewhere, see <a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com</a>.</p>
+  </aside>
+
   <header>
     <span class="eyebrow">Three Circles</span>
     <h1 id="greeting">How are you right now?</h1>
@@ -247,6 +268,42 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     <div class="history" id="history"></div>
   </section>
 
+  <details id="reminders">
+    <summary>Check-in reminders</summary>
+    <div class="stack">
+      <p class="small" id="rem-status">Get a gentle notification asking which circle you're in.</p>
+      <div class="rem-grid">
+        <div class="field">
+          <label for="rem-every">Remind me</label>
+          <select id="rem-every">
+            <option value="30">Every 30 minutes</option>
+            <option value="60">Every hour</option>
+            <option value="120" selected>Every 2 hours</option>
+            <option value="180">Every 3 hours</option>
+            <option value="240">Every 4 hours</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="rem-start">From</label>
+          <select id="rem-start"></select>
+        </div>
+        <div class="field">
+          <label for="rem-end">Until</label>
+          <select id="rem-end"></select>
+        </div>
+      </div>
+      <p class="small muted" id="rem-preview"></p>
+      <div class="row">
+        <button class="btn primary" type="button" id="rem-on">Turn on reminders</button>
+        <button class="btn primary" type="button" id="rem-save" hidden>Save changes</button>
+        <button class="btn" type="button" id="rem-test" hidden>Send a test</button>
+        <button class="btn quiet" type="button" id="rem-off" hidden>Turn off</button>
+      </div>
+      <p class="small" id="rem-msg" role="status" hidden></p>
+      <p class="small muted">Reminders are sent by a small server that only knows your phone's notification address and this schedule. Your check-ins and notes never leave your device.</p>
+    </div>
+  </details>
+
   <details id="data">
     <summary>Your data</summary>
     <div class="stack">
@@ -276,12 +333,6 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       </div>
     </div>
   </details>
-
-  <aside class="support" aria-labelledby="support-h">
-    <strong id="support-h">If you're in crisis, you don't have to handle it alone.</strong>
-    <p>In the US, call or text <span class="big-num">988</span> for the Suicide &amp; Crisis Lifeline, any time. If you're in danger right now, call 911.</p>
-    <p>Elsewhere, <a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com</a> lists free, confidential lines in your country.</p>
-  </aside>
 
   <footer>
     <p>Three Circles is a personal journal, not a replacement for care from a professional.</p>
@@ -579,6 +630,171 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     var st = backupState(); st.snooze = Date.now() + SNOOZE; setBackupState(st);
     $("#backup-nudge").hidden = true;
   });
+
+  // Reminders: push notifications from the reminder server in push-server/
+  var PUSH = window.THREE_CIRCLES_PUSH || null;
+  var REM_KEY = "three-circles:reminders";
+  function remPrefs() {
+    try { return JSON.parse(localStorage.getItem(REM_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function setRemPrefs(p) { try { localStorage.setItem(REM_KEY, JSON.stringify(p)); } catch (e) {} }
+  function hourLabel(h, m) {
+    var d = new Date(); d.setHours(h, m || 0, 0, 0);
+    return d.toLocaleTimeString([], m ? { hour: "numeric", minute: "2-digit" } : { hour: "numeric" });
+  }
+  ["#rem-start", "#rem-end"].forEach(function (sel, i) {
+    for (var h = 0; h < 24; h++) {
+      var o = el("option", null, hourLabel(h)); o.value = h; $(sel).appendChild(o);
+    }
+    $(sel).value = i ? 21 : 9;
+  });
+  function schedule() {
+    return {
+      every: Number($("#rem-every").value), start: Number($("#rem-start").value), end: Number($("#rem-end").value),
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone
+    };
+  }
+  function remSlots(s) {
+    var out = [];
+    for (var m = s.start * 60; m <= s.end * 60; m += s.every) out.push(m);
+    return out;
+  }
+  function slotLabel(m) { return hourLabel(Math.floor(m / 60), m % 60); }
+  function nextReminder(s) {
+    var now = new Date(), mins = now.getHours() * 60 + now.getMinutes();
+    var list = remSlots(s), next = list.filter(function (m) { return m > mins; })[0];
+    return next != null ? slotLabel(next) : "tomorrow at " + slotLabel(list[0]);
+  }
+  function remPreview() {
+    var s = schedule();
+    if (s.start > s.end) { $("#rem-preview").textContent = "Pick an end time that's after the start time."; return false; }
+    var list = remSlots(s);
+    var shown = list.length > 8 ? list.slice(0, 3).map(slotLabel).join(", ") + " … " + slotLabel(list[list.length - 1]) : list.map(slotLabel).join(", ");
+    $("#rem-preview").textContent = "That's " + list.length + (list.length === 1 ? " reminder" : " reminders") + " a day: " + shown + ".";
+    return true;
+  }
+  function remMsg(text) { $("#rem-msg").textContent = text || ""; $("#rem-msg").hidden = !text; }
+  function remUI(on, dirty) {
+    $("#rem-on").hidden = on;
+    $("#rem-save").hidden = !(on && dirty);
+    $("#rem-test").hidden = !on;
+    $("#rem-off").hidden = !on;
+    $("#rem-status").textContent = on
+      ? "Reminders are on. The next one is " + nextReminder(schedule()) + "."
+      : "Get a gentle notification asking which circle you're in.";
+  }
+  function isIOS() {
+    return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+  function isInstalled() {
+    return navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+  }
+  function remBlocker() {
+    if (framed) return "Reminders work once Three Circles is opened from its own website and added to your home screen. They can't run in this preview.";
+    if (!PUSH || !PUSH.server || !PUSH.publicKey) return "Reminders aren't set up for this copy of the app yet. The README explains how to set up the reminder server.";
+    if (isIOS() && !isInstalled()) return "On iPhone, add Three Circles to your home screen first: tap Share, then Add to Home Screen, and open it from there.";
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return "This browser can't show notifications. Try adding the app to your home screen, or use Chrome or Safari.";
+    return null;
+  }
+  function keyBytes(b64) {
+    var s = atob((b64 + "===".slice((b64.length + 3) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(s, function (c) { return c.charCodeAt(0); });
+  }
+  function api(path, body) {
+    return fetch(PUSH.server.replace(/\/$/, "") + path, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) throw new Error(data.error || "The reminder server didn't respond.");
+        return data;
+      });
+    });
+  }
+  function currentSub(create) {
+    return navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        if (sub || !create) return sub;
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(PUSH.publicKey) });
+      });
+    });
+  }
+  function saveSchedule(sub) {
+    var s = schedule();
+    return api("/subscribe", { subscription: sub.toJSON(), schedule: s }).then(function () {
+      setRemPrefs({ on: true, every: s.every, start: s.start, end: s.end });
+      remUI(true, false);
+    });
+  }
+  function busy(btn, on) { btn.disabled = on; }
+
+  $("#rem-on").addEventListener("click", function () {
+    var btn = this;
+    if (!remPreview()) return;
+    var blocker = remBlocker();
+    if (blocker) { remMsg(blocker); return; }
+    busy(btn, true); remMsg("");
+    Notification.requestPermission().then(function (perm) {
+      if (perm !== "granted") throw new Error("Notifications are turned off for Three Circles. You can allow them in your phone's settings, then try again.");
+      return currentSub(true);
+    }).then(saveSchedule).then(function () {
+      remMsg("Reminders are on. You can change the schedule any time.");
+    }).catch(function (e) {
+      if (e && e.name === "NotAllowedError") remMsg("Notifications are turned off for Three Circles. You can allow them in your phone's settings, then try again.");
+      else if (e && e.name && e.name !== "Error") remMsg("This device couldn't sign up for notifications (" + e.message + "). Please try again in a moment.");
+      else remMsg((e && e.message) || "Something went wrong turning reminders on. Please try again.");
+    })
+      .then(function () { busy(btn, false); });
+  });
+  $("#rem-save").addEventListener("click", function () {
+    var btn = this;
+    if (!remPreview()) return;
+    busy(btn, true);
+    currentSub(true).then(saveSchedule).then(function () { remMsg("Saved. The next reminder is " + nextReminder(schedule()) + "."); })
+      .catch(function (e) { remMsg(e.message); }).then(function () { busy(btn, false); });
+  });
+  $("#rem-test").addEventListener("click", function () {
+    var btn = this;
+    busy(btn, true);
+    currentSub(false).then(function (sub) {
+      if (!sub) throw new Error("Reminders aren't on for this device anymore. Turn them on again.");
+      return api("/test", { subscription: sub.toJSON() });
+    }).then(function () { remMsg("Test sent. It should arrive in a few seconds."); })
+      .catch(function (e) { remMsg(e.message); }).then(function () { busy(btn, false); });
+  });
+  $("#rem-off").addEventListener("click", function () {
+    var btn = this;
+    busy(btn, true);
+    currentSub(false).then(function (sub) {
+      if (!sub) return;
+      return api("/unsubscribe", { subscription: sub.toJSON() }).catch(function () {}).then(function () { return sub.unsubscribe(); });
+    }).then(function () {
+      setRemPrefs({ on: false, every: schedule().every, start: schedule().start, end: schedule().end });
+      remUI(false); remMsg("Reminders are off.");
+    }).catch(function (e) { remMsg(e.message); }).then(function () { busy(btn, false); });
+  });
+  ["#rem-every", "#rem-start", "#rem-end"].forEach(function (sel) {
+    $(sel).addEventListener("change", function () {
+      var ok = remPreview();
+      if (remPrefs().on) $("#rem-save").hidden = !ok;
+    });
+  });
+
+  (function initReminders() {
+    var p = remPrefs();
+    if (p.every) { $("#rem-every").value = p.every; $("#rem-start").value = p.start; $("#rem-end").value = p.end; }
+    remPreview();
+    remUI(false);
+    if (!framed && "serviceWorker" in navigator && /^https:|^http:\/\/localhost/.test(location.href)) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+    if (!p.on || remBlocker()) return;
+    // Re-send the schedule on each open, so a new notification address or time zone is picked up
+    currentSub(false).then(function (sub) {
+      if (!sub || Notification.permission !== "granted") { setRemPrefs({ on: false, every: p.every, start: p.start, end: p.end }); return; }
+      remUI(true, false);
+      return saveSchedule(sub);
+    }).catch(function () {});
+  })();
 
   render();
   checkBackup();
