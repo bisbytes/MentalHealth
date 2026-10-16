@@ -43,7 +43,14 @@ pnpm run setup
 
 `pnpm run setup` creates the storage, makes notification keys, deploys the worker, and writes the server address into `threecircles/config.js`. Commit and push `threecircles/config.js` and `push-server/wrangler.toml` afterwards. If you host the app somewhere other than `https://mentalhealth.bisbytes.com`, change `ALLOWED_ORIGINS` in `push-server/wrangler.toml` first.
 
-After pulling server changes, redeploy with `npx pnpm run deploy` in `push-server`. Run `pnpm test` there to check the encryption and scheduling.
+### Automatic deploys
+
+After the first setup, GitHub deploys the reminder server whenever `push-server/` changes on `main` (see `.github/workflows/deploy-push-server.yml`). It needs two repository secrets, under **Settings > Secrets and variables > Actions**:
+
+- `CLOUDFLARE_ACCOUNT_ID`: shown on the right of your Cloudflare dashboard's Workers & Pages overview.
+- `CLOUDFLARE_API_TOKEN`: create one under **My Profile > API Tokens > Create Token**, using the **Edit Cloudflare Workers** template.
+
+You can also run it by hand from the **Actions** tab. Run `pnpm test` in `push-server` to check the encryption and scheduling.
 
 ## Run it
 
