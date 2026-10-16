@@ -1,5 +1,5 @@
 // Three Circles service worker: works offline and shows check-in reminders.
-const CACHE = "three-circles-v1";
+const CACHE = "three-circles-v2";
 const SHELL = ["./", "index.html", "config.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -31,28 +31,71 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+const ZONES = { red: "Red", drive: "Drive", green: "Green" };
+
+// Check-ins made from a notification wait here until the app next opens,
+// because a service worker can't reach the app's localStorage.
+function pendingStore(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open("three-circles", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("pending", { keyPath: "id" });
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const tx = open.result.transaction("pending", mode);
+      fn(tx.objectStore("pending"));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    };
+  });
+}
+
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) {}
-  event.waitUntil(
-    self.registration.showNotification(data.title || "Three Circles", {
-      body: data.body || "Which circle are you in right now?",
-      icon: "icons/icon-192.png",
-      badge: "icons/icon-192.png",
-      tag: "check-in",
-      renotify: true,
-      data: { url: self.registration.scope },
-    })
-  );
+  const options = {
+    body: data.body || "Which circle are you in right now?",
+    icon: "icons/icon-192.png",
+    badge: "icons/icon-192.png",
+    tag: "check-in",
+    renotify: true,
+    data: { url: self.registration.scope + "#checkin" },
+  };
+  // Phones that show three action buttons get one per circle; elsewhere a tap opens the app.
+  if ((self.Notification && Notification.maxActions) >= 3) {
+    options.actions = Object.keys(ZONES).map((z) => ({ action: z, title: ZONES[z] }));
+  }
+  event.waitUntil(self.registration.showNotification(data.title || "Three Circles", options));
 });
+
+function openApp(url, message) {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+    const win = wins.find((w) => w.url.startsWith(self.registration.scope));
+    if (win) { win.postMessage(message); return win.focus(); }
+    return self.clients.openWindow(url);
+  });
+}
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || self.registration.scope;
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
-      const open = wins.find((w) => w.url.startsWith(self.registration.scope));
-      return open ? open.focus() : self.clients.openWindow(target);
-    })
-  );
+  const zone = event.action;
+  if (ZONES[zone]) {
+    const at = new Date();
+    const entry = { id: at.getTime().toString(36) + Math.random().toString(36).slice(2, 8), zone, at: at.toISOString(), note: "" };
+    event.waitUntil(
+      pendingStore("readwrite", (store) => store.put(entry))
+        .then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true }))
+        .then((wins) => wins.forEach((w) => w.postMessage({ type: "pending" })))
+        .then(() => self.registration.showNotification("Saved: " + ZONES[zone], {
+          body: "Checked in at " + at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ".",
+          icon: "icons/icon-192.png",
+          badge: "icons/icon-192.png",
+          tag: "check-in",
+          silent: true,
+          data: { url: self.registration.scope + "#history" },
+        }))
+    );
+    return;
+  }
+  const url = (event.notification.data && event.notification.data.url) || self.registration.scope + "#checkin";
+  event.waitUntil(openApp(url, { type: url.endsWith("#history") ? "history" : "checkin" }));
 });

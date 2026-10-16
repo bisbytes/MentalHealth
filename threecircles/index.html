@@ -99,6 +99,10 @@ header { display: flex; flex-direction: column; gap: 6px; }
 .zone-btn[data-zone] .zone-name { color: var(--c); }
 .zone-btn[aria-pressed="true"] .zone-name { color: var(--surface); }
 .prompt { text-align: center; }
+.circles.nudge .zone-btn { animation: nudge 1.4s ease-in-out 2; }
+.circles.nudge .zone-btn[data-zone="drive"] { animation-delay: .15s; }
+.circles.nudge .zone-btn[data-zone="green"] { animation-delay: .3s; }
+@keyframes nudge { 50% { transform: scale(1.04); box-shadow: 0 0 0 6px var(--soft); } }
 
 /* Check-in panel */
 .panel {
@@ -797,8 +801,65 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     }).catch(function () {});
   })();
 
+  // Check-ins tapped on a notification are queued by the service worker in IndexedDB
+  function drainPending() {
+    if (!("indexedDB" in window) || framed) return;
+    try {
+      var req = indexedDB.open("three-circles", 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore("pending", { keyPath: "id" }); };
+      req.onsuccess = function () {
+        var db = req.result;
+        var tx = db.transaction("pending", "readwrite");
+        var store = tx.objectStore("pending");
+        var all = store.getAll();
+        all.onsuccess = function () {
+          var items = (all.result || []).filter(valid);
+          if (!items.length) return;
+          var current = load();
+          var have = {}; current.forEach(function (e) { have[e.id] = true; });
+          var added = items.filter(function (e) { return !have[e.id]; });
+          entries = current.concat(added);
+          save(entries);
+          store.clear();
+          render(); checkBackup();
+        };
+      };
+    } catch (e) {}
+  }
+
+  // Deep links from notifications: #checkin opens ready to pick a circle, #history shows the list
+  function followLink(kind) {
+    var smooth = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    if (kind === "checkin") {
+      var c = $(".circles");
+      c.scrollIntoView({ behavior: smooth, block: "center" });
+      c.classList.remove("nudge"); void c.offsetWidth; c.classList.add("nudge");
+      setTimeout(function () { c.classList.remove("nudge"); }, 3200);
+      buttons[0].focus({ preventScroll: true });
+    } else if (kind === "history") {
+      $("#hist-h").scrollIntoView({ behavior: smooth, block: "start" });
+    }
+  }
+  if ("serviceWorker" in navigator && !framed) {
+    navigator.serviceWorker.addEventListener("message", function (ev) {
+      var t = ev.data && ev.data.type;
+      drainPending();
+      if (t === "checkin" || t === "history") followLink(t);
+    });
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) drainPending(); });
+
   render();
   checkBackup();
+  drainPending();
+  function linkFromHash() {
+    var kind = location.hash.replace("#", "");
+    if (kind !== "checkin" && kind !== "history") return;
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    setTimeout(function () { followLink(kind); }, 150);
+  }
+  window.addEventListener("hashchange", linkFromHash);
+  linkFromHash();
 })();
 </script>
 </body>
