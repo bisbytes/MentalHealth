@@ -7,10 +7,10 @@ crons = ["*/15 * * * *"]
 
 [[kv_namespaces]]
 binding = "SUBS"
-id = "REPLACE_WITH_KV_ID"
+id = "bf4ed8d5225f4f8fa03a62a8dde8368b"
 
 [vars]
 # Sites allowed to turn reminders on, comma separated.
 ALLOWED_ORIGINS = "https://mentalhealth.bisbytes.com"
 VAPID_SUBJECT = "https://mentalhealth.bisbytes.com"
-VAPID_PUBLIC_KEY = ""
+VAPID_PUBLIC_KEY = "BLVTEGK8dIMP5oG__wXPl0NgtGcjLYCOgPK00mvE5gT6qkUfD2BbS_OUpcw6qO76A2dOUl3ERT3vSPEWmz7X9AQ"
