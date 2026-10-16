@@ -692,6 +692,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   function remBlocker() {
     if (framed) return "Reminders work once Three Circles is opened from its own website and added to your home screen. They can't run in this preview.";
     if (!PUSH || !PUSH.server || !PUSH.publicKey) return "Reminders aren't set up for this copy of the app yet. The README explains how to set up the reminder server.";
+    if (!window.isSecureContext) return "Reminders need a secure connection. Open the app at https://" + location.host + location.pathname + " (with https). If that address doesn't load, turn on Enforce HTTPS in the repo's GitHub Pages settings.";
     if (isIOS() && !isInstalled()) return "On iPhone, add Three Circles to your home screen first: tap Share, then Add to Home Screen, and open it from there.";
     if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return "This browser can't show notifications. Try adding the app to your home screen, or use Chrome or Safari.";
     return null;
