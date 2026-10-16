@@ -20,11 +20,13 @@ Tap a circle, add a note if you like, and save. The app shows your last 7 days a
 
 ## Run it
 
-It's a single static file with no build step. Open `index.html` in a browser, or serve the folder:
+The app is a single static file, `threecircles/index.html`, with no build step. Open it in a browser, or serve the repo:
 
 ```sh
 python3 -m http.server 8000
 ```
+
+Then visit http://localhost:8000/threecircles/.
 
 ### Put it on your phone
 
