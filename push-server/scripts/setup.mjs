@@ -1,6 +1,6 @@
 // One-time setup: creates the storage, makes notification keys, deploys the
 // reminder server to Cloudflare, and writes ../threecircles/config.js.
-// Run after `npx wrangler login`. Safe to run again; it keeps existing keys.
+// Run after `pnpm exec wrangler login`. Safe to run again; it keeps existing keys.
 
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -15,7 +15,7 @@ let toml = readFileSync(TOML, "utf8");
 
 if (toml.includes("REPLACE_WITH_KV_ID")) {
   console.log("Creating storage for reminder schedules…");
-  const out = run("npx wrangler kv namespace create SUBS");
+  const out = run("pnpm exec wrangler kv namespace create SUBS");
   const id = (out.match(/id\s*[=:]\s*"?([0-9a-f]{32})"?/) || [])[1];
   if (!id) { console.error(out); throw new Error("Couldn't read the new KV namespace id from wrangler's output."); }
   toml = toml.replace("REPLACE_WITH_KV_ID", id);
@@ -34,13 +34,13 @@ if (/VAPID_PUBLIC_KEY = ""/.test(toml)) {
 }
 
 console.log("Deploying…");
-const deployOut = run("npx wrangler deploy");
+const deployOut = run("pnpm exec wrangler deploy");
 process.stdout.write(deployOut);
 const url = (deployOut.match(/https:\/\/[\w.-]+\.workers\.dev/) || [])[0];
 
 if (newKeys) {
   console.log("Saving the private key as a secret…");
-  run("npx wrangler secret put VAPID_PRIVATE_JWK", newKeys.privateJwk);
+  run("pnpm exec wrangler secret put VAPID_PRIVATE_JWK", newKeys.privateJwk);
 }
 
 const publicKey = toml.match(/VAPID_PUBLIC_KEY = "([^"]+)"/)[1];

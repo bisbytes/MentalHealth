@@ -28,18 +28,18 @@ On iPhone, notifications only work after you add the app to your home screen (iO
 
 ### Set up the reminder server (one time)
 
-You need Node.js 18+ and a free Cloudflare account.
+You need Node.js 18+, [pnpm](https://pnpm.io/installation) and a free Cloudflare account.
 
 ```sh
 cd push-server
-npm install
-npx wrangler login
-npm run setup
+pnpm install
+pnpm exec wrangler login
+pnpm run setup
 ```
 
-`npm run setup` creates the storage, makes notification keys, deploys the worker, and writes the server address into `threecircles/config.js`. Commit and push `threecircles/config.js` and `push-server/wrangler.toml` afterwards. If you host the app somewhere other than `https://mentalhealth.bisbytes.com`, change `ALLOWED_ORIGINS` in `push-server/wrangler.toml` first.
+`pnpm run setup` creates the storage, makes notification keys, deploys the worker, and writes the server address into `threecircles/config.js`. Commit and push `threecircles/config.js` and `push-server/wrangler.toml` afterwards. If you host the app somewhere other than `https://mentalhealth.bisbytes.com`, change `ALLOWED_ORIGINS` in `push-server/wrangler.toml` first.
 
-Run `npm test` in `push-server` to check the encryption and scheduling.
+Run `pnpm test` in `push-server` to check the encryption and scheduling.
 
 ## Run it
 
