@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#eef2f1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#11181b" media="(prefers-color-scheme: dark)">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
 <title>Three Circles</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Check in to your red, drive or green zone. Private, no account, stays on your device.">
@@ -170,6 +169,7 @@ details .stack { display: flex; flex-direction: column; gap: 12px; }
 .confirm { background: var(--red-soft); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 
 .notice { background: var(--drive-soft); border-radius: 12px; padding: 10px 14px; font-size: .92rem; }
+.notice.backup { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
 
 /* Support */
 .support {
@@ -222,6 +222,14 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   </form>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <div class="notice backup" id="backup-nudge" hidden>
+    <p>It's been a little while since you saved a copy of your check-ins. A quick backup keeps them safe if this browser's data is ever cleared.</p>
+    <div class="row">
+      <button class="btn" type="button" id="backup-now">Back up now</button>
+      <button class="btn quiet" type="button" id="backup-later">Remind me later</button>
+    </div>
+  </div>
 
   <div class="notice" id="storage-notice" hidden>This browser isn't saving data right now, which can happen in a private window. Your check-ins will disappear when you close this page.</div>
 
@@ -285,6 +293,9 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
 (function () {
   "use strict";
   var KEY = "three-circles:v1";
+  var BACKUP_KEY = "three-circles:backup";
+  var DAY = 864e5;
+  var BACKUP_EVERY = 14 * DAY, SNOOZE = 3 * DAY;
   var ZONES = {
     red: { name: "Red", hint: "You noticed it, and that matters. If you can, let your out-breath be a little longer than your in-breath." },
     drive: { name: "Drive", hint: "Drive helps you get things done. Is there a small moment to pause today?" },
@@ -491,10 +502,11 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   $("#copy").addEventListener("click", function () {
     var text = exportText();
     var box = $("#export-box");
-    function fallback() { box.value = text; box.hidden = false; box.focus(); box.select(); $("#copy").textContent = "Select and copy the text below"; }
+    function fallback() { box.value = text; box.hidden = false; box.focus(); box.select(); $("#copy").textContent = "Select and copy the text below"; markBackedUp(); }
     try {
       navigator.clipboard.writeText(text).then(function () {
         $("#copy").textContent = "Copied " + load().length + " check-ins";
+        markBackedUp();
         setTimeout(function () { $("#copy").textContent = "Copy data"; }, 2500);
       }, fallback);
     } catch (e) { fallback(); }
@@ -509,6 +521,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     a.download = "three-circles-" + new Date().toISOString().slice(0, 10) + ".json";
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    markBackedUp();
   });
   $("#import").addEventListener("click", function () {
     var msg = $("#import-msg");
@@ -538,7 +551,37 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     $("#wipe-confirm").hidden = true; render();
   });
 
+  // Gentle backup reminder: every two weeks of use, snoozable
+  function backupState() {
+    try { return JSON.parse(localStorage.getItem(BACKUP_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function setBackupState(st) {
+    try { localStorage.setItem(BACKUP_KEY, JSON.stringify(st)); } catch (e) {}
+  }
+  function markBackedUp() {
+    setBackupState({ last: Date.now() });
+    $("#backup-nudge").hidden = true;
+  }
+  function checkBackup() {
+    var list = load();
+    if (!list.length || !storageOk) { $("#backup-nudge").hidden = true; return; }
+    var st = backupState(), now = Date.now();
+    var since = st.last || Math.min.apply(null, list.map(function (e) { return Date.parse(e.at); }));
+    var due = now - since > BACKUP_EVERY && !(st.snooze && st.snooze > now);
+    $("#backup-nudge").hidden = !due;
+  }
+  $("#backup-now").addEventListener("click", function () {
+    var d = $("#data"); d.open = true;
+    d.scrollIntoView({ block: "start" });
+    $("#copy").click();
+  });
+  $("#backup-later").addEventListener("click", function () {
+    var st = backupState(); st.snooze = Date.now() + SNOOZE; setBackupState(st);
+    $("#backup-nudge").hidden = true;
+  });
+
   render();
+  checkBackup();
 })();
 </script>
 </body>

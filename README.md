@@ -16,6 +16,7 @@ Tap a circle, add a note if you like, and save. The app shows your last 7 days a
 - No account, no server, no analytics.
 - Check-ins are stored in your browser's `localStorage` on the device you use. Clearing site data deletes them.
 - **Your data** lets you copy a backup (JSON), restore it on another device, or delete everything.
+- Every two weeks the app gently reminds you to back up, since clearing browser data would erase your check-ins.
 
 ## Run it
 
