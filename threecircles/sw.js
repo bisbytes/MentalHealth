@@ -1,5 +1,5 @@
 // Three Circles service worker: works offline and shows check-in reminders.
-const CACHE = "three-circles-v2";
+const CACHE = "three-circles-v3";
 const SHELL = ["./", "index.html", "config.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -60,9 +60,13 @@ self.addEventListener("push", (event) => {
     renotify: true,
     data: { url: self.registration.scope + "#checkin" },
   };
-  // Phones that show three action buttons get one per circle; elsewhere a tap opens the app.
-  if ((self.Notification && Notification.maxActions) >= 3) {
+  // Buttons where the browser allows them (not on iPhone). Chrome shows at most two,
+  // so there it's a one-tap Red plus a button that opens the app to pick a circle.
+  const max = (self.Notification && Notification.maxActions) || 0;
+  if (max >= 3) {
     options.actions = Object.keys(ZONES).map((z) => ({ action: z, title: ZONES[z] }));
+  } else if (max === 2) {
+    options.actions = [{ action: "red", title: "I'm in red" }, { action: "open", title: "Check in" }];
   }
   event.waitUntil(self.registration.showNotification(data.title || "Three Circles", options));
 });
