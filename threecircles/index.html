@@ -153,6 +153,29 @@ section { display: flex; flex-direction: column; gap: 12px; }
 .day-label { font-size: .75rem; color: var(--muted); letter-spacing: .04em; }
 .day.today .day-label { color: var(--ink); font-weight: 700; }
 
+/* Day split: donut of time per zone for one day */
+.pie-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pie-nav .btn { min-width: 44px; padding: 8px 14px; font-size: 1.2rem; line-height: 1; }
+.pie-nav .btn:disabled { opacity: .35; cursor: default; }
+.pie-day { font-family: var(--display); font-weight: 700; text-align: center; }
+.pie-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.pie { width: 190px; height: 190px; flex: none; position: relative; }
+.pie svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.pie path { stroke: var(--bg); stroke-width: 2; stroke-linejoin: round; }
+.pie-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; pointer-events: none; }
+.pie-center b { font-family: var(--display); font-size: 1.35rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pie-center span { font-size: .8rem; color: var(--muted); }
+.pie-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 11rem; font-variant-numeric: tabular-nums; }
+.pie-legend li { display: grid; grid-template-columns: auto 1fr auto; gap: 0 10px; align-items: baseline; }
+.pie-legend .dot { width: .75em; height: .75em; }
+.pie-legend b { font-family: var(--display); }
+.pie-legend .pct { color: var(--muted); font-size: .9rem; }
+.pie-legend .dur { grid-column: 2 / -1; font-size: .88rem; color: var(--muted); }
+.pie-trend { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; font-size: .95rem; }
+.day { border: 0; background: transparent; padding: 4px 0; border-radius: 10px; }
+.day[aria-pressed="true"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.day[aria-pressed="true"] .day-label { color: var(--ink); font-weight: 700; }
+
 /* History */
 .history { display: flex; flex-direction: column; gap: 18px; }
 .group { display: flex; flex-direction: column; gap: 8px; }
@@ -267,6 +290,21 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     <div class="bar" id="bar" aria-hidden="true"></div>
     <div class="legend" id="legend"></div>
     <p class="muted small">Every circle has a purpose. Red keeps you safe, drive gets things done, and green lets you rest. The aim is balance, not living in one.</p>
+  </section>
+
+  <section aria-labelledby="pie-h">
+    <h2 id="pie-h">Where your time went</h2>
+    <div class="pie-nav">
+      <button class="btn" type="button" id="pie-prev" aria-label="Previous day">&lsaquo;</button>
+      <span class="pie-day" id="pie-day" aria-live="polite">Today</span>
+      <button class="btn" type="button" id="pie-next" aria-label="Next day">&rsaquo;</button>
+    </div>
+    <div class="pie-wrap">
+      <div class="pie" id="pie" role="img"></div>
+      <ul class="pie-legend" id="pie-legend"></ul>
+    </div>
+    <p class="pie-trend" id="pie-trend"></p>
+    <p class="muted small">Each check-in counts until your next one, for up to 4 hours. Time with no check-in isn't counted. Tap a day above to see it here.</p>
   </section>
 
   <section aria-labelledby="hist-h">
@@ -484,6 +522,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     var isExample = !entries.length;
     $("#examples-note").hidden = !isExample;
     renderWeek(list);
+    renderPie(list);
     renderHistory(list, isExample);
     $("#wipe").disabled = !entries.length;
   }
@@ -498,7 +537,10 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       var todays = list.filter(function (e) { return dayKey(new Date(e.at)) === k; })
         .sort(function (a, b) { return a.at < b.at ? -1 : 1; });
       todays.forEach(function (e) { counts[e.zone]++; });
-      var col = el("div", "day" + (i === 6 ? " today" : ""));
+      var col = el("button", "day" + (i === 6 ? " today" : ""));
+      col.type = "button";
+      col.setAttribute("aria-pressed", String(+d === +pieDay));
+      col.addEventListener("click", (function (day) { return function () { pieDay = day; render(); }; })(d));
       var dots = el("div", "day-dots");
       todays.slice(0, 5).forEach(function (e) { var dot = el("i", "c-" + e.zone); dot.title = ZONES[e.zone].name; dots.appendChild(dot); });
       if (todays.length > 5) dots.appendChild(el("em", "more", "+" + (todays.length - 5)));
@@ -515,6 +557,124 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       legend.appendChild(el("span", "c-" + z, ZONES[z].name + " " + counts[z]));
     });
   }
+
+  // Day split: time in each zone runs from a check-in to the next one, up to SPAN_CAP
+  var SPAN_CAP = 4 * 3600 * 1000;
+  var ORDER = ["red", "drive", "green"];
+  function startOfDay(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  var pieDay = startOfDay(new Date());
+  function dayTimes(list, day) {
+    var from = +day, to = Math.min(+addDays(day, 1), Date.now());
+    var out = { red: 0, drive: 0, green: 0, total: 0 };
+    var sorted = list.map(function (e) { return { zone: e.zone, t: Date.parse(e.at) }; })
+      .sort(function (a, b) { return a.t - b.t; });
+    sorted.forEach(function (e, i) {
+      var end = Math.min(e.t + SPAN_CAP, i + 1 < sorted.length ? sorted[i + 1].t : Infinity);
+      var ms = Math.min(end, to) - Math.max(e.t, from);
+      // A check-in made just now still shows up, as its first minute
+      if (e.t >= from && e.t < to) ms = Math.max(ms, 60000);
+      if (ms > 0) { out[e.zone] += ms; out.total += ms; }
+    });
+    return out;
+  }
+  function fmtDur(ms) {
+    var m = Math.round(ms / 60000), h = Math.floor(m / 60); m %= 60;
+    return h ? h + "h" + (m ? " " + m + "m" : "") : m + "m";
+  }
+  function topZone(t) {
+    if (!t.total) return null;
+    return ORDER.slice().sort(function (a, b) { return t[b] - t[a]; })[0];
+  }
+  function arc(cx, cy, r0, r1, a0, a1) {
+    function pt(r, a) { return (cx + r * Math.sin(a)).toFixed(2) + " " + (cy - r * Math.cos(a)).toFixed(2); }
+    var big = a1 - a0 > Math.PI ? 1 : 0;
+    return "M" + pt(r1, a0) + "A" + r1 + " " + r1 + " 0 " + big + " 1 " + pt(r1, a1) +
+      "L" + pt(r0, a1) + "A" + r0 + " " + r0 + " 0 " + big + " 0 " + pt(r0, a0) + "Z";
+  }
+  function renderPie(list) {
+    var today = startOfDay(new Date());
+    if (pieDay > today) pieDay = today;
+    var first = list.length ? startOfDay(new Date(Math.min.apply(null, list.map(function (e) { return Date.parse(e.at); })))) : today;
+    $("#pie-prev").disabled = pieDay <= first;
+    $("#pie-next").disabled = +pieDay === +today;
+    $("#pie-day").textContent = dayLabel(pieDay);
+    var t = dayTimes(list, pieDay);
+    var NS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(NS, "svg"); svg.setAttribute("viewBox", "0 0 100 100");
+    var shown = ORDER.filter(function (z) { return t[z] > 0; });
+    if (!shown.length) {
+      var ring = document.createElementNS(NS, "circle");
+      ring.setAttribute("cx", 50); ring.setAttribute("cy", 50); ring.setAttribute("r", 40);
+      ring.setAttribute("fill", "none"); ring.setAttribute("stroke", "var(--line)"); ring.setAttribute("stroke-width", 18);
+      svg.appendChild(ring);
+    } else if (shown.length === 1) {
+      var full = document.createElementNS(NS, "circle");
+      full.setAttribute("cx", 50); full.setAttribute("cy", 50); full.setAttribute("r", 40);
+      full.setAttribute("fill", "none"); full.setAttribute("stroke", "var(--" + shown[0] + ")"); full.setAttribute("stroke-width", 18);
+      svg.appendChild(full);
+    } else {
+      var a = 0;
+      shown.forEach(function (z) {
+        var sweep = t[z] / t.total * 2 * Math.PI;
+        var path = document.createElementNS(NS, "path");
+        path.setAttribute("d", arc(50, 50, 31, 49, a, a + sweep));
+        path.setAttribute("fill", "var(--" + z + ")");
+        var tip = document.createElementNS(NS, "title");
+        tip.textContent = ZONES[z].name + ": " + fmtDur(t[z]) + " (" + Math.round(t[z] / t.total * 100) + "%)";
+        path.appendChild(tip);
+        svg.appendChild(path);
+        a += sweep;
+      });
+    }
+    var pie = $("#pie"); pie.innerHTML = "";
+    pie.appendChild(svg);
+    var center = el("div", "pie-center");
+    center.appendChild(el("b", null, t.total ? fmtDur(t.total) : "—"));
+    center.appendChild(el("span", null, t.total ? "checked in" : "no check-ins"));
+    pie.appendChild(center);
+    var legend = $("#pie-legend"); legend.innerHTML = "";
+    ORDER.forEach(function (z) {
+      var li = el("li");
+      li.appendChild(el("span", "dot c-" + z));
+      li.appendChild(el("b", null, ZONES[z].name));
+      li.appendChild(el("span", "pct", t.total ? Math.round(t[z] / t.total * 100) + "%" : "0%"));
+      li.appendChild(el("span", "dur", t[z] ? fmtDur(t[z]) : "No time"));
+      legend.appendChild(li);
+    });
+    pie.setAttribute("aria-label", dayLabel(pieDay) + ": " + (t.total
+      ? ORDER.map(function (z) { return ZONES[z].name + " " + fmtDur(t[z]); }).join(", ")
+      : "no check-ins"));
+    $("#pie-trend").textContent = trendText(list, t);
+  }
+  function trendText(list, t) {
+    var isToday = +pieDay === +startOfDay(new Date());
+    var top = topZone(t);
+    var prev = topZone(dayTimes(list, addDays(pieDay, -1)));
+    var week = { red: 0, drive: 0, green: 0, total: 0 };
+    for (var i = 0; i < 7; i++) {
+      var w = dayTimes(list, addDays(pieDay, -i));
+      ORDER.forEach(function (z) { week[z] += w[z]; }); week.total += w.total;
+    }
+    var weekTop = topZone(week);
+    var when = isToday ? "today" : "this day";
+    var parts = [];
+    if (!top) parts.push(isToday ? "No check-ins yet today. Whenever you're ready, tap a circle above." : "No check-ins on this day.");
+    else {
+      parts.push("Most of your time " + when + " was in " + ZONES[top].name.toLowerCase() + ".");
+      if (prev && prev === top) parts.push("Same as the day before.");
+      else if (prev) parts.push("The day before leaned " + ZONES[prev].name.toLowerCase() + ".");
+    }
+    if (weekTop) parts.push("Over the 7 days up to " + (isToday ? "today" : "here") + ", " + ZONES[weekTop].name.toLowerCase() + " took the most time (" + Math.round(week[weekTop] / week.total * 100) + "%).");
+    if (top === "red") parts.push("That's a lot to carry. Be gentle with yourself.");
+    return parts.join(" ");
+  }
+  $("#pie-prev").addEventListener("click", function () { pieDay = addDays(pieDay, -1); render(); });
+  $("#pie-next").addEventListener("click", function () { pieDay = addDays(pieDay, 1); render(); });
+  // Keep today's chart live as the current check-in's time grows
+  setInterval(function () {
+    if (!document.hidden && +pieDay === +startOfDay(new Date())) renderPie(shown());
+  }, 60000);
 
   function renderHistory(list, isExample) {
     var box = $("#history"); box.innerHTML = "";
