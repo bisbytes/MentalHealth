@@ -90,6 +90,8 @@ It's hosted with GitHub Pages at https://mentalhealth.bisbytes.com/threecircles/
 
 The three circles come from the three emotion regulation systems (threat, drive and soothing) in Compassion Focused Therapy, developed by Professor Paul Gilbert. To learn more, see his book *The Compassionate Mind* or the [Compassionate Mind Foundation](https://www.compassionatemind.co.uk/). This project isn't affiliated with or endorsed by either; the app's wording is its own.
 
+Three Circles was designed by [BisBytes](https://bisbytes.com) and built with the help of generative AI. The app itself doesn't use AI: your check-ins and notes stay on your device and are never sent to us or to any AI service. If you turn on reminders, the reminder server keeps only your phone's notification address and your schedule.
+
 ## Contributing
 
 Issues and pull requests are welcome. Please keep the tone of any copy gentle and non-judgmental.
