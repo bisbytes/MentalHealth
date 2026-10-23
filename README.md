@@ -8,7 +8,7 @@ A small, private web app for noticing which emotional zone you're in, any time o
 
 Tap a circle, add a note if you like, and save. The app shows your last 7 days and a full history so you can see patterns over time, or bring them to a therapist.
 
-**Thoughts** is a place to jot down whatever's on your mind, apart from check-ins. Tick "This could be a blog post" to keep it with your blog ideas, and optionally name a series to group related ideas. Filter by blog ideas or by series, and edit or remove a thought any time. Open the app at `#thoughts` to go straight to it.
+Each note in History has a copy button, so you can share it, and an edit button to tidy it up (or add a note to a check-in that has none).
 
 > Three Circles is a personal journal, not a replacement for professional care.
 > If you're in crisis in the US, call or text **988**. Elsewhere, see [findahelpline.com](https://findahelpline.com).
@@ -16,7 +16,7 @@ Tap a circle, add a note if you like, and save. The app shows your last 7 days a
 ## Privacy
 
 - No account, no server, no analytics.
-- Check-ins and thoughts are stored in your browser's `localStorage` on the device you use. Clearing site data deletes them.
+- Check-ins are stored in your browser's `localStorage` on the device you use. Clearing site data deletes them.
 - **Your data** lets you copy a backup (JSON), restore it on another device, or delete everything.
 - Every two weeks the app gently reminds you to back up, since clearing browser data would erase your check-ins.
 
@@ -76,14 +76,11 @@ It's hosted with GitHub Pages at https://mentalhealth.bisbytes.com/threecircles/
   "version": 1,
   "entries": [
     { "id": "lx2k9a3f", "zone": "green", "at": "2026-10-16T19:05:00.000Z", "note": "Dinner with my sister." }
-  ],
-  "thoughts": [
-    { "id": "lx2kb1qe", "at": "2026-10-16T19:20:00.000Z", "text": "How naming the red zone helped me", "blog": true, "series": "Notes on anxiety" }
   ]
 }
 ```
 
-`zone` is one of `red`, `drive`, `green`. `at` is an ISO 8601 timestamp. In `thoughts`, `blog` marks a blog idea and `series` is an optional series name (empty when not in one). Backups without `thoughts` still restore fine.
+`zone` is one of `red`, `drive`, `green`. `at` is an ISO 8601 timestamp.
 
 ## Contributing
 
