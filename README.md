@@ -13,6 +13,10 @@ Each note in History has a copy button, so you can share it, and an edit button 
 > Three Circles is a personal journal, not a replacement for professional care.
 > If you're in crisis in the US, call or text **988**. Elsewhere, see [findahelpline.com](https://findahelpline.com).
 
+## Share with your therapist
+
+**Share with your therapist** makes a readable summary for the last 7 days, 2 weeks, 30 days or 3 months: what each circle means, how many check-ins and how much time went to each, any time-of-day patterns, and a day-by-day log. Leave out your notes if you'd rather. Share it from your phone's share sheet, copy it as text, or print it or save it as a PDF. **Your data** is a different thing: a backup for the app to read back, not meant for people.
+
 ## Privacy
 
 - No account, no server, no analytics.

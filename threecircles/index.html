@@ -218,6 +218,7 @@ select {
   border: 1px solid var(--line); background: var(--bg); padding: 8px 10px;
 }
 #reminders .btn.primary { --c: var(--drive); }
+#rem-off { align-self: flex-start; }
 #rem-msg { background: var(--drive-soft); border-radius: 12px; padding: 10px 14px; }
 .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; font-size: .95rem; }
 .check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--drive); flex: none; }
@@ -269,6 +270,35 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
 body.has-dock { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 body.minimized header, body.minimized .circles, body.minimized .shrink { display: none; }
 @media (max-width: 360px) { .mini { width: 44px; height: 44px; font-size: .66rem; } .dock-inner { gap: 7px; } }
+
+/* Share with your therapist: a readable summary, shown as a preview and used for printing */
+#share .btn.primary { --c: var(--green); }
+.share-grid { grid-template-columns: 1fr; }
+.report {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  display: flex; flex-direction: column; gap: 14px; font-size: .92rem; line-height: 1.45;
+}
+.report h3 { font-family: var(--display); font-size: 1.1rem; margin: 0; }
+.report h4 { font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+.report table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.report th, .report td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.report th { font-size: .8rem; color: var(--muted); font-weight: 700; }
+.report ul { margin: 0; padding-left: 1.1em; }
+.report .day-log { display: flex; flex-direction: column; gap: 10px; }
+.report .log-day b { display: block; }
+.report .log-row { display: grid; grid-template-columns: 5.2em 4em 1fr; gap: 0 8px; }
+.report .log-row time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.report .log-note { overflow-wrap: anywhere; white-space: pre-wrap; }
+.report .fine { color: var(--muted); font-size: .82rem; }
+#print-area { display: none; }
+@media print {
+  body.printing { background: #fff; color: #000; padding: 0; }
+  body.printing main, body.printing .dock { display: none !important; }
+  body.printing #print-area { display: block; }
+  body.printing .report { background: #fff; border: 0; padding: 0; font-size: 11pt; --line: #ccc; --muted: #444; }
+  body.printing .log-day { break-inside: avoid; }
+  body.printing .dot { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -358,9 +388,10 @@ body.minimized header, body.minimized .circles, body.minimized .shrink { display
   </section>
 
   <details id="reminders">
-    <summary>Check-in reminders</summary>
+    <summary>Check-in reminders <span class="muted small" id="rem-state" style="font-weight:400"></span></summary>
     <div class="stack">
       <p class="small" id="rem-status">Get a gentle notification asking which circle you're in.</p>
+      <button class="btn" type="button" id="rem-off" hidden>Turn off reminders</button>
       <div class="rem-grid">
         <div class="field">
           <label for="rem-every">Remind me</label>
@@ -394,17 +425,46 @@ body.minimized header, body.minimized .circles, body.minimized .shrink { display
         <button class="btn primary" type="button" id="rem-on">Turn on reminders</button>
         <button class="btn primary" type="button" id="rem-save" hidden>Save changes</button>
         <button class="btn" type="button" id="rem-test" hidden>Send a test</button>
-        <button class="btn quiet" type="button" id="rem-off" hidden>Turn off</button>
       </div>
       <p class="small" id="rem-msg" role="status" hidden></p>
       <p class="small muted">Reminders are sent by a small server that only knows your phone's notification address and this schedule. Your check-ins and notes never leave your device.</p>
     </div>
   </details>
 
+  <details id="share">
+    <summary>Share with your therapist</summary>
+    <div class="stack">
+      <p class="small">Make an easy-to-read summary of your check-ins to bring to a session or send ahead. You choose what goes in it, and nothing leaves your phone until you share it yourself.</p>
+      <div class="rem-grid share-grid">
+        <div class="field">
+          <label for="share-range">Covering</label>
+          <select id="share-range">
+            <option value="7">The last 7 days</option>
+            <option value="14" selected>The last 2 weeks</option>
+            <option value="30">The last 30 days</option>
+            <option value="90">The last 3 months</option>
+          </select>
+        </div>
+      </div>
+      <label class="check" for="share-notes">
+        <input type="checkbox" id="share-notes" checked>
+        <span>Include my notes</span>
+      </label>
+      <div class="row">
+        <button class="btn primary" type="button" id="share-send" hidden>Share…</button>
+        <button class="btn" type="button" id="share-copy">Copy as text</button>
+        <button class="btn" type="button" id="share-print">Print or save as PDF</button>
+      </div>
+      <p class="small" id="share-msg" role="status" hidden></p>
+      <p class="small muted">Preview:</p>
+      <div class="report" id="report"></div>
+    </div>
+  </details>
+
   <details id="data">
     <summary>Your data</summary>
     <div class="stack">
-      <p class="small">Your check-ins are stored only in this browser on this device. Nothing is sent anywhere and there is no account. Copy your data to keep a backup or move it to another device.</p>
+      <p class="small">Your check-ins are stored only in this browser on this device. Nothing is sent anywhere and there is no account. Copy your data to keep a backup or move it to another device. This copy is for the app to read back; to share with your therapist, use <b>Share with your therapist</b> above.</p>
       <div class="row">
         <button class="btn" type="button" id="copy">Copy data</button>
         <button class="btn" type="button" id="download" hidden>Download file</button>
@@ -436,6 +496,8 @@ body.minimized header, body.minimized .circles, body.minimized .shrink { display
     <p>Open source under the MIT license.</p>
   </footer>
 </main>
+
+<div id="print-area"></div>
 
 <nav class="dock" id="dock" aria-label="Quick check-in">
   <div class="dock-inner">
@@ -586,6 +648,7 @@ body.minimized header, body.minimized .circles, body.minimized .shrink { display
     renderHistory(list, isExample);
     $("#wipe").disabled = !entries.length;
     renderDock();
+    if ($("#share").open) updateShare();
   }
 
   // Mini bar: remembers whether the big circles are shrunk; otherwise appears once they scroll away
@@ -896,6 +959,162 @@ body.minimized header, body.minimized .circles, body.minimized .shrink { display
     });
   }
 
+  // Share with your therapist: a plain-language summary for a chosen span, as text (share, copy) or a page (print, PDF)
+  var KEY_WORDS = { red: "threat: anxious, angry, on alert", drive: "wanting, striving, pushing on", green: "calm, safe, settled" };
+  var PARTS = [["morning", 5, 12], ["afternoon", 12, 17], ["evening", 17, 22], ["night", 22, 29]];
+  function partOfDay(d) {
+    var h = d.getHours(); if (h < 5) h += 24;
+    return PARTS.filter(function (p) { return h >= p[1] && h < p[2]; })[0][0];
+  }
+  function fmtDate(d, year) { return d.toLocaleDateString([], year ? { month: "short", day: "numeric", year: "numeric" } : { weekday: "short", month: "short", day: "numeric" }); }
+  function pct(n, total) { return total ? Math.round(n / total * 100) + "%" : "0%"; }
+  function summary() {
+    var days = Number($("#share-range").value), notes = $("#share-notes").checked;
+    var today = startOfDay(new Date()), from = addDays(today, -(days - 1));
+    var all = load();
+    var list = all.filter(function (e) { return Date.parse(e.at) >= +from; })
+      .sort(function (a, b) { return a.at < b.at ? -1 : 1; });
+    var counts = { red: 0, drive: 0, green: 0 }, time = { red: 0, drive: 0, green: 0, total: 0 }, parts = { red: {}, drive: {}, green: {} };
+    var byDay = [], dayCount = 0;
+    list.forEach(function (e) {
+      var d = new Date(e.at);
+      counts[e.zone]++;
+      var p = partOfDay(d); parts[e.zone][p] = (parts[e.zone][p] || 0) + 1;
+      var g = byDay[byDay.length - 1];
+      if (!g || g.key !== dayKey(d)) { g = { key: dayKey(d), date: d, items: [] }; byDay.push(g); }
+      g.items.push(e);
+    });
+    for (var i = 0; i < days; i++) {
+      var t = dayTimes(all, addDays(from, i));
+      if (t.total) dayCount++;
+      ORDER.forEach(function (z) { time[z] += t[z]; }); time.total += t.total;
+    }
+    var patterns = ORDER.filter(function (z) { return counts[z] >= 2; }).map(function (z) {
+      var top = Object.keys(parts[z]).sort(function (a, b) { return parts[z][b] - parts[z][a]; })[0];
+      return parts[z][top] / counts[z] >= 0.5 ? ZONES[z].name + " check-ins were most often in the " + top + " (" + parts[z][top] + " of " + counts[z] + ")." : null;
+    }).filter(Boolean);
+    return { days: days, from: from, to: today, list: list, counts: counts, time: time, byDay: byDay, activeDays: byDay.length, patterns: patterns, notes: notes };
+  }
+  function summaryLines(r) {
+    var span = fmtDate(r.from, true) + " to " + fmtDate(r.to, true);
+    var head = r.list.length + (r.list.length === 1 ? " check-in" : " check-ins") + " on " + r.activeDays + " of " + r.days + " days";
+    return { span: span, head: head };
+  }
+  function summaryText(r) {
+    var l = summaryLines(r), out = [];
+    out.push("Three Circles check-in summary");
+    out.push(l.span + " · " + l.head);
+    out.push("");
+    out.push("The three circles: Red (" + KEY_WORDS.red + "), Drive (" + KEY_WORDS.drive + "), Green (" + KEY_WORDS.green + ").");
+    if (!r.list.length) { out.push(""); out.push("No check-ins in this time."); return out.join("\n"); }
+    out.push("");
+    out.push("OVERVIEW");
+    ORDER.forEach(function (z) {
+      out.push("- " + ZONES[z].name + ": " + r.counts[z] + " check-ins (" + pct(r.counts[z], r.list.length) + ")" +
+        (r.time.total ? ", about " + fmtDur(r.time[z]) + " (" + pct(r.time[z], r.time.total) + " of tracked time)" : ""));
+    });
+    r.patterns.forEach(function (p) { out.push("- " + p); });
+    out.push("");
+    out.push("DAY BY DAY");
+    r.byDay.forEach(function (g) {
+      out.push(fmtDate(g.date));
+      g.items.forEach(function (e) {
+        out.push("  " + fmtTime(new Date(e.at)) + "  " + ZONES[e.zone].name + (r.notes && e.note ? ": " + e.note.replace(/\s*\n\s*/g, " / ") : ""));
+      });
+    });
+    out.push("");
+    out.push("Tracked time counts each check-in until the next one, for up to 4 hours. Made with Three Circles, a personal check-in journal.");
+    return out.join("\n");
+  }
+  function renderReport(box, r) {
+    var l = summaryLines(r);
+    box.innerHTML = "";
+    box.appendChild(el("h3", null, "Three Circles check-in summary"));
+    box.appendChild(el("p", null, l.span + " · " + l.head));
+    var key = el("div"); key.appendChild(el("h4", null, "The three circles"));
+    var ul = el("ul");
+    ORDER.forEach(function (z) {
+      var li = el("li"); li.appendChild(el("b", null, ZONES[z].name)); li.appendChild(document.createTextNode(": " + KEY_WORDS[z])); ul.appendChild(li);
+    });
+    key.appendChild(ul); box.appendChild(key);
+    if (!r.list.length) { box.appendChild(el("p", "fine", "No check-ins in this time yet.")); return; }
+
+    var ov = el("div"); ov.appendChild(el("h4", null, "Overview"));
+    var tb = el("table"), hr = el("tr");
+    ["", "Check-ins", "Tracked time"].forEach(function (h) { hr.appendChild(el("th", null, h)); });
+    tb.appendChild(hr);
+    ORDER.forEach(function (z) {
+      var tr = el("tr"), name = el("td");
+      name.appendChild(el("span", "dot c-" + z)); name.appendChild(document.createTextNode(ZONES[z].name));
+      tr.appendChild(name);
+      tr.appendChild(el("td", null, r.counts[z] + " (" + pct(r.counts[z], r.list.length) + ")"));
+      tr.appendChild(el("td", null, r.time.total ? fmtDur(r.time[z]) + " (" + pct(r.time[z], r.time.total) + ")" : "–"));
+      tb.appendChild(tr);
+    });
+    ov.appendChild(tb);
+    if (r.patterns.length) {
+      var pu = el("ul"); pu.style.marginTop = "8px";
+      r.patterns.forEach(function (p) { pu.appendChild(el("li", null, p)); });
+      ov.appendChild(pu);
+    }
+    box.appendChild(ov);
+
+    var log = el("div", "day-log"); log.appendChild(el("h4", null, "Day by day"));
+    r.byDay.forEach(function (g) {
+      var d = el("div", "log-day"); d.appendChild(el("b", null, fmtDate(g.date)));
+      g.items.forEach(function (e) {
+        var row = el("div", "log-row");
+        row.appendChild(el("time", null, fmtTime(new Date(e.at))));
+        var z = el("span"); z.appendChild(el("span", "dot c-" + e.zone)); z.appendChild(document.createTextNode(ZONES[e.zone].name));
+        row.appendChild(z);
+        row.appendChild(el("span", "log-note", r.notes ? e.note : ""));
+        d.appendChild(row);
+      });
+      log.appendChild(d);
+    });
+    box.appendChild(log);
+    box.appendChild(el("p", "fine", "Tracked time counts each check-in until the next one, for up to 4 hours; time with no check-in isn't counted. Made with Three Circles, a personal check-in journal."));
+  }
+  function updateShare() {
+    var r = summary();
+    renderReport($("#report"), r);
+    ["#share-send", "#share-copy", "#share-print"].forEach(function (b) { $(b).disabled = !r.list.length; });
+    return r;
+  }
+  function shareMsg(text) { $("#share-msg").textContent = text || ""; $("#share-msg").hidden = !text; }
+  $("#share").addEventListener("toggle", function () { if (this.open) { shareMsg(""); updateShare(); } });
+  $("#share-range").addEventListener("change", updateShare);
+  $("#share-notes").addEventListener("change", updateShare);
+  $("#share-send").hidden = !navigator.share;
+  $("#share-send").addEventListener("click", function () {
+    var r = updateShare();
+    navigator.share({ title: "Three Circles check-in summary", text: summaryText(r) }).catch(function () {});
+  });
+  $("#share-copy").addEventListener("click", function () {
+    var text = summaryText(updateShare());
+    function fallback() {
+      var ta = el("textarea"); ta.value = text; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) {}
+      ta.remove();
+      shareMsg(ok ? "Copied. Paste it into an email or message to your therapist." : "Couldn't copy here. Try Print or save as PDF instead.");
+    }
+    try {
+      navigator.clipboard.writeText(text).then(function () { shareMsg("Copied. Paste it into an email or message to your therapist."); }, fallback);
+    } catch (e) { fallback(); }
+  });
+  $("#share-print").addEventListener("click", function () {
+    var area = $("#print-area"); area.innerHTML = "";
+    var box = el("div", "report"); area.appendChild(box);
+    renderReport(box, updateShare());
+    document.body.classList.add("printing");
+    shareMsg("In the print window, choose Save as PDF (on iPhone, tap Share in the print preview) to keep a file you can send.");
+    window.print();
+  });
+  window.addEventListener("afterprint", function () { document.body.classList.remove("printing"); $("#print-area").innerHTML = ""; });
+
   // Data: copy, download, restore, delete all
   function exportText() {
     return JSON.stringify({ app: "three-circles", version: 1, exportedAt: new Date().toISOString(), entries: load() }, null, 2);
@@ -1029,6 +1248,7 @@ body.minimized header, body.minimized .circles, body.minimized .shrink { display
     $("#rem-save").hidden = !(on && dirty);
     $("#rem-test").hidden = !on;
     $("#rem-off").hidden = !on;
+    $("#rem-state").textContent = on ? "· On" : "";
     $("#rem-status").textContent = on
       ? "Reminders are on. The next one is " + nextReminder(schedule()) + "."
       : "Get a gentle notification asking which circle you're in.";
