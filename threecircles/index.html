@@ -280,6 +280,8 @@ input[type="text"] {
 .tag.blog { background: var(--green-soft); }
 .thought-actions { display: flex; flex-direction: column; align-items: flex-end; }
 .thought-empty { list-style: none; }
+.entry-tools { display: flex; flex-wrap: wrap; gap: 2px; margin: 2px 0 0 -8px; align-items: center; }
+.entry-tools .saved { font-size: .85rem; color: var(--green); padding: 6px 8px; }
 #thought-more { align-self: flex-start; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
@@ -849,6 +851,7 @@ input[type="text"] {
         head.appendChild(t);
         main.appendChild(head);
         if (e.note) main.appendChild(el("p", "entry-note", e.note));
+        if (e.note && !isExample) main.appendChild(noteTools(e));
         li.appendChild(main);
         if (!isExample) {
           var rm = el("button", "remove", "Remove"); rm.type = "button";
@@ -881,7 +884,9 @@ input[type="text"] {
   }
   function cleanThought(t) {
     var blog = !!t.blog;
-    return { id: t.id || uid(), at: t.at, text: t.text.slice(0, 4000), blog: blog, series: blog && typeof t.series === "string" ? t.series.trim().slice(0, 80) : "" };
+    var out = { id: t.id || uid(), at: t.at, text: t.text.slice(0, 4000), blog: blog, series: blog && typeof t.series === "string" ? t.series.trim().slice(0, 80) : "" };
+    if (typeof t.from === "string") out.from = t.from;
+    return out;
   }
   function loadThoughts() {
     try {
@@ -973,9 +978,55 @@ input[type="text"] {
     li.appendChild(acts);
     return li;
   }
+  // From History: copy a check-in note, or bring it into Thoughts as a blog idea (remembering which check-in it came from)
+  var jotFrom = null;
+  function copyText(text, btn, label) {
+    function done(ok) {
+      btn.textContent = ok ? "Copied" : "Couldn't copy";
+      setTimeout(function () { btn.textContent = label; }, 2000);
+    }
+    function fallback() {
+      var ta = el("textarea"); ta.value = text; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) {}
+      ta.remove(); done(ok);
+    }
+    try { navigator.clipboard.writeText(text).then(function () { done(true); }, fallback); }
+    catch (e) { fallback(); }
+  }
+  function noteTools(e) {
+    var box = el("div", "entry-tools");
+    var cp = el("button", "remove", "Copy"); cp.type = "button";
+    cp.setAttribute("aria-label", "Copy note from " + ZONES[e.zone].name + " check-in at " + fmtTime(new Date(e.at)));
+    cp.addEventListener("click", function () { copyText(e.note, cp, "Copy"); });
+    box.appendChild(cp);
+    if (loadThoughts().some(function (t) { return t.from === e.id; })) {
+      box.appendChild(el("span", "saved", "In your blog ideas"));
+    } else {
+      var bl = el("button", "remove", "Save as blog idea"); bl.type = "button";
+      bl.setAttribute("aria-label", "Save note from " + ZONES[e.zone].name + " check-in at " + fmtTime(new Date(e.at)) + " as a blog idea");
+      bl.addEventListener("click", function () { blogFromEntry(e); });
+      box.appendChild(bl);
+    }
+    return box;
+  }
+  function blogFromEntry(e) {
+    resetJot();
+    jotFrom = e.id;
+    $("#jot-text").value = e.note; $("#jot-blog").checked = true;
+    showSeriesField();
+    $("#jot-save").textContent = "Save blog idea";
+    $("#jot-cancel").hidden = false;
+    clearTimeout(jotTimer);
+    $("#jot-msg").textContent = "Add it to a series if you like, then save.";
+    $("#thoughts-h").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    $("#jot-series").focus({ preventScroll: true });
+  }
   function showSeriesField() { $("#jot-series-field").hidden = !$("#jot-blog").checked; }
   function resetJot() {
-    editingThought = null;
+    editingThought = null; jotFrom = null;
     $("#jot-text").value = ""; $("#jot-blog").checked = false; $("#jot-series").value = "";
     showSeriesField();
     $("#jot-save").textContent = "Save thought";
@@ -1014,7 +1065,9 @@ input[type="text"] {
     if (editing) {
       list = list.map(function (x) { return x.id === editingThought ? Object.assign({}, x, { text: text, blog: blog, series: series }) : x; });
     } else {
-      list = list.concat([{ id: uid(), at: new Date().toISOString(), text: text, blog: blog, series: series }]);
+      var t = { id: uid(), at: new Date().toISOString(), text: text, blog: blog, series: series };
+      if (jotFrom) t.from = jotFrom;
+      list = list.concat([t]);
     }
     saveThoughts(list);
     jotMsg(editing ? "Updated." : blog ? "Saved with your blog ideas." : "Saved. One less thing to hold onto.");
