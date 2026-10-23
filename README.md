@@ -86,6 +86,10 @@ It's hosted with GitHub Pages at https://mentalhealth.bisbytes.com/threecircles/
 
 `zone` is one of `red`, `drive`, `green`. `at` is an ISO 8601 timestamp.
 
+## Credit
+
+The three circles come from the three emotion regulation systems (threat, drive and soothing) in Compassion Focused Therapy, developed by Professor Paul Gilbert. To learn more, see his book *The Compassionate Mind* or the [Compassionate Mind Foundation](https://www.compassionatemind.co.uk/). This project isn't affiliated with or endorsed by either; the app's wording is its own.
+
 ## Contributing
 
 Issues and pull requests are welcome. Please keep the tone of any copy gentle and non-judgmental.
