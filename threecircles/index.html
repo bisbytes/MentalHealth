@@ -227,6 +227,40 @@ select {
 .big-num { font-family: var(--display); font-weight: 700; font-size: 1.1rem; text-decoration: none; white-space: nowrap; }
 footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: column; gap: 4px; text-align: center; }
 
+/* Mini bar: the circles, small, docked at the bottom. Shows when minimized or when the big circles scroll away. */
+.shrink { align-self: center; font-size: .9rem; padding: 8px 16px; min-height: 40px; color: var(--muted); }
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  padding: 8px max(16px, env(safe-area-inset-left, 0px)) calc(8px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line); box-shadow: 0 -6px 20px -14px rgba(0, 0, 0, .35);
+  transform: translateY(110%); transition: transform .22s ease; visibility: hidden;
+}
+.dock.on { transform: none; visibility: visible; }
+.dock-inner { max-width: 34rem; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+.dock-now { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.dock-now b { font-family: var(--display); font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-now span { font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-now .dot { width: .65em; height: .65em; }
+.mini {
+  width: 48px; height: 48px; flex: none; border-radius: 50%; border: 2px solid var(--c); background: var(--soft);
+  color: var(--c); font-family: var(--display); font-weight: 700; font-size: .72rem; padding: 0;
+  transition: transform .15s ease, background .15s ease;
+}
+.mini:active { transform: scale(.94); }
+.mini[aria-pressed="true"] { background: var(--c); color: var(--surface); }
+.mini[data-zone="red"] { --c: var(--red); --soft: var(--red-soft); }
+.mini[data-zone="drive"] { --c: var(--drive); --soft: var(--drive-soft); }
+.mini[data-zone="green"] { --c: var(--green); --soft: var(--green-soft); }
+.dock-grow { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); padding: 0; font-size: 1.1rem; line-height: 1; color: var(--muted); }
+.dock.nudge .mini { animation: nudge 1.4s ease-in-out 2; }
+.dock.nudge .mini[data-zone="drive"] { animation-delay: .15s; }
+.dock.nudge .mini[data-zone="green"] { animation-delay: .3s; }
+body.has-dock { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+body.minimized header, body.minimized .circles, body.minimized .shrink { display: none; }
+@media (max-width: 360px) { .mini { width: 44px; height: 44px; font-size: .66rem; } .dock-inner { gap: 7px; } }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 <script src="config.js"></script>
@@ -258,6 +292,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       <span class="zone-words">Calm, safe, settled</span>
     </button>
   </div>
+  <button class="btn quiet shrink" type="button" id="shrink">Shrink to a bar at the bottom</button>
 
   <form class="panel" id="panel" hidden>
     <h2 id="panel-title">Red</h2>
@@ -393,6 +428,16 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   </footer>
 </main>
 
+<nav class="dock" id="dock" aria-label="Quick check-in">
+  <div class="dock-inner">
+    <div class="dock-now" id="dock-now"><b>How are you?</b><span>Tap a circle to check in</span></div>
+    <button class="mini" type="button" data-zone="red" aria-pressed="false" aria-label="Check in: Red">Red</button>
+    <button class="mini" type="button" data-zone="drive" aria-pressed="false" aria-label="Check in: Drive">Drive</button>
+    <button class="mini" type="button" data-zone="green" aria-pressed="false" aria-label="Check in: Green">Green</button>
+    <button class="dock-grow" type="button" id="dock-grow" aria-label="Show the big circles" hidden>&#8963;</button>
+  </div>
+</nav>
+
 <script>
 (function () {
   "use strict";
@@ -472,9 +517,14 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   buttons.forEach(function (b) {
     b.addEventListener("click", function () { choose(b.dataset.zone); });
   });
+  var minis = document.querySelectorAll(".mini");
+  minis.forEach(function (b) {
+    b.addEventListener("click", function () { choose(b.dataset.zone); $("#note").focus({ preventScroll: true }); });
+  });
   function choose(zone) {
     selected = zone;
     buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.zone === zone)); });
+    minis.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.zone === zone)); });
     var panel = $("#panel");
     panel.dataset.zone = zone;
     $("#panel-title").textContent = "Checking in: " + ZONES[zone].name;
@@ -488,6 +538,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     $("#panel").hidden = true;
     $("#note").value = "";
     buttons.forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+    minis.forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
   }
   $("#cancel").addEventListener("click", closePanel);
   $("#panel").addEventListener("submit", function (ev) {
@@ -525,7 +576,56 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     renderPie(list);
     renderHistory(list, isExample);
     $("#wipe").disabled = !entries.length;
+    renderDock();
   }
+
+  // Mini bar: remembers whether the big circles are shrunk; otherwise appears once they scroll away
+  var MINI_KEY = "three-circles:mini";
+  var minimized = false, circlesVisible = true;
+  try { minimized = localStorage.getItem(MINI_KEY) === "1"; } catch (e) {}
+  function renderDock() {
+    var last = entries.slice().sort(function (a, b) { return a.at < b.at ? 1 : -1; })[0];
+    var box = $("#dock-now");
+    box.innerHTML = "";
+    if (last) {
+      var d = new Date(last.at), b = el("b");
+      var dot = el("i", "dot c-" + last.zone);
+      b.appendChild(dot);
+      b.appendChild(document.createTextNode(ZONES[last.zone].name));
+      box.appendChild(b);
+      var lbl = dayLabel(d).split(",")[0], when = dayKey(d) === dayKey(new Date()) ? fmtTime(d) : lbl === "Yesterday" ? "yesterday" : lbl;
+      box.appendChild(el("span", null, "Last check-in " + when));
+    } else {
+      box.appendChild(el("b", null, "How are you?"));
+      box.appendChild(el("span", null, "Tap a circle to check in"));
+    }
+  }
+  function updateDock() {
+    var on = minimized || !circlesVisible;
+    $("#dock").classList.toggle("on", on);
+    $("#dock").inert = !on;
+    document.body.classList.toggle("has-dock", on);
+    document.body.classList.toggle("minimized", minimized);
+    $("#dock-grow").hidden = !minimized;
+  }
+  function setMinimized(on) {
+    minimized = on;
+    try { localStorage.setItem(MINI_KEY, on ? "1" : "0"); } catch (e) {}
+    updateDock();
+  }
+  $("#shrink").addEventListener("click", function () { setMinimized(true); window.scrollTo(0, 0); });
+  $("#dock-grow").addEventListener("click", function () {
+    setMinimized(false);
+    window.scrollTo(0, 0);
+    buttons[0].focus({ preventScroll: true });
+  });
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (list) {
+      circlesVisible = list[list.length - 1].isIntersecting;
+      updateDock();
+    }, { threshold: 0.15 }).observe($(".circles"));
+  }
+  updateDock();
 
   function renderWeek(list) {
     var week = $("#week"); week.innerHTML = "";
@@ -1063,7 +1163,12 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   // Deep links from notifications: #checkin opens ready to pick a circle, #history shows the list
   function followLink(kind) {
     var smooth = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-    if (kind === "checkin") {
+    if (kind === "checkin" && minimized) {
+      var dk = $("#dock");
+      dk.classList.remove("nudge"); void dk.offsetWidth; dk.classList.add("nudge");
+      setTimeout(function () { dk.classList.remove("nudge"); }, 3200);
+      minis[0].focus({ preventScroll: true });
+    } else if (kind === "checkin") {
       var c = $(".circles");
       c.scrollIntoView({ behavior: smooth, block: "center" });
       c.classList.remove("nudge"); void c.offsetWidth; c.classList.add("nudge");
