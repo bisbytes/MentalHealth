@@ -88,7 +88,9 @@ It's hosted with GitHub Pages at https://mentalhealth.bisbytes.com/threecircles/
 
 ## Credit
 
-The three circles come from the three emotion regulation systems (threat, drive and soothing) in Compassion Focused Therapy, developed by Professor Paul Gilbert. To learn more, see his book *The Compassionate Mind* or the [Compassionate Mind Foundation](https://www.compassionatemind.co.uk/). Three Circles was designed and built by [BisBytes](https://bisbytes.com). This project isn't affiliated with or endorsed by either; the app's wording is its own.
+The three circles come from the three emotion regulation systems (threat, drive and soothing) in Compassion Focused Therapy, developed by Professor Paul Gilbert. To learn more, see his book *The Compassionate Mind* or the [Compassionate Mind Foundation](https://www.compassionatemind.co.uk/). This project isn't affiliated with or endorsed by either; the app's wording is its own.
+
+Three Circles was designed and built by [BisBytes](https://bisbytes.com).
 
 ## Contributing
 
