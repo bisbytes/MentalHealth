@@ -227,6 +227,62 @@ select {
 .big-num { font-family: var(--display); font-weight: 700; font-size: 1.1rem; text-decoration: none; white-space: nowrap; }
 footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: column; gap: 4px; text-align: center; }
 
+/* Mini bar: the circles, small, docked at the bottom. Shows when minimized or when the big circles scroll away. */
+.shrink { align-self: center; font-size: .9rem; padding: 8px 16px; min-height: 40px; color: var(--muted); }
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  padding: 8px max(16px, env(safe-area-inset-left, 0px)) calc(8px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line); box-shadow: 0 -6px 20px -14px rgba(0, 0, 0, .35);
+  transform: translateY(110%); transition: transform .22s ease; visibility: hidden;
+}
+.dock.on { transform: none; visibility: visible; }
+.dock-inner { max-width: 34rem; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+.dock-now { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.dock-now b { font-family: var(--display); font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-now span { font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-now .dot { width: .65em; height: .65em; }
+.mini {
+  width: 48px; height: 48px; flex: none; border-radius: 50%; border: 2px solid var(--c); background: var(--soft);
+  color: var(--c); font-family: var(--display); font-weight: 700; font-size: .72rem; padding: 0;
+  transition: transform .15s ease, background .15s ease;
+}
+.mini:active { transform: scale(.94); }
+.mini[aria-pressed="true"] { background: var(--c); color: var(--surface); }
+.mini[data-zone="red"] { --c: var(--red); --soft: var(--red-soft); }
+.mini[data-zone="drive"] { --c: var(--drive); --soft: var(--drive-soft); }
+.mini[data-zone="green"] { --c: var(--green); --soft: var(--green-soft); }
+.dock-grow { width: 40px; height: 40px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); padding: 0; font-size: 1.1rem; line-height: 1; color: var(--muted); }
+.dock.nudge .mini { animation: nudge 1.4s ease-in-out 2; }
+.dock.nudge .mini[data-zone="drive"] { animation-delay: .15s; }
+.dock.nudge .mini[data-zone="green"] { animation-delay: .3s; }
+body.has-dock { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+body.minimized header, body.minimized .circles, body.minimized .shrink { display: none; }
+@media (max-width: 360px) { .mini { width: 44px; height: 44px; font-size: .66rem; } .dock-inner { gap: 7px; } }
+
+/* Thoughts: quick notes, separate from check-ins. Some are marked as blog ideas and grouped into a series. */
+.jot { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.jot textarea { min-height: 76px; }
+input[type="text"] {
+  font: inherit; color: inherit; width: 100%; min-height: 44px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--bg); padding: 8px 12px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; min-height: 40px;
+  font-size: .9rem; font-weight: 700; display: inline-flex; gap: 6px; align-items: center; max-width: 100%;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: transparent; }
+.chip-n { opacity: .7; font-weight: 400; font-variant-numeric: tabular-nums; }
+.entry.thought { grid-template-columns: 1fr auto; }
+.tag { font-size: .78rem; font-weight: 700; border-radius: 999px; padding: 1px 9px; background: var(--drive-soft); overflow-wrap: anywhere; }
+.tag.blog { background: var(--green-soft); }
+.thought-actions { display: flex; flex-direction: column; align-items: flex-end; }
+.thought-empty { list-style: none; }
+#thought-more { align-self: flex-start; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 <script src="config.js"></script>
@@ -258,6 +314,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       <span class="zone-words">Calm, safe, settled</span>
     </button>
   </div>
+  <button class="btn quiet shrink" type="button" id="shrink">Shrink to a bar at the bottom</button>
 
   <form class="panel" id="panel" hidden>
     <h2 id="panel-title">Red</h2>
@@ -275,7 +332,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
   <div class="notice backup" id="backup-nudge" hidden>
-    <p>It's been a little while since you saved a copy of your check-ins. A quick backup keeps them safe if this browser's data is ever cleared.</p>
+    <p>It's been a little while since you saved a copy of your check-ins and thoughts. A quick backup keeps them safe if this browser's data is ever cleared.</p>
     <div class="row">
       <button class="btn" type="button" id="backup-now">Back up now</button>
       <button class="btn quiet" type="button" id="backup-later">Remind me later</button>
@@ -283,6 +340,32 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   </div>
 
   <div class="notice" id="storage-notice" hidden>This browser isn't saving data right now, which can happen in a private window. Your check-ins will disappear when you close this page.</div>
+
+  <section aria-labelledby="thoughts-h" id="thoughts">
+    <h2 id="thoughts-h">Thoughts</h2>
+    <p class="muted small">Somewhere to set down what's on your mind. Some thoughts might grow into a blog post or a series, and it's fine if most don't.</p>
+    <form class="jot" id="jot">
+      <label for="jot-text" class="sr-only">Your thought</label>
+      <textarea id="jot-text" maxlength="4000" placeholder="What's on your mind?"></textarea>
+      <label class="check" for="jot-blog">
+        <input type="checkbox" id="jot-blog">
+        <span>This could be a blog post</span>
+      </label>
+      <div class="field" id="jot-series-field" hidden>
+        <label for="jot-series">Part of a series? <span class="muted" style="font-weight:400">(optional)</span></label>
+        <input type="text" id="jot-series" list="series-list" maxlength="80" autocomplete="off" placeholder="Pick one or name a new series">
+        <datalist id="series-list"></datalist>
+      </div>
+      <div class="row">
+        <button class="btn primary" type="submit" id="jot-save">Save thought</button>
+        <button class="btn quiet" type="button" id="jot-cancel" hidden>Cancel</button>
+        <span class="small muted" id="jot-msg" role="status"></span>
+      </div>
+    </form>
+    <div class="chips" id="thought-filters" role="group" aria-label="Show thoughts" hidden></div>
+    <ul class="entries" id="thought-list"></ul>
+    <button class="btn quiet" type="button" id="thought-more" hidden></button>
+  </section>
 
   <section aria-labelledby="week-h">
     <h2 id="week-h">Your last 7 days</h2>
@@ -360,7 +443,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   <details id="data">
     <summary>Your data</summary>
     <div class="stack">
-      <p class="small">Your check-ins are stored only in this browser on this device. Nothing is sent anywhere and there is no account. Copy your data to keep a backup or move it to another device.</p>
+      <p class="small">Your check-ins and thoughts are stored only in this browser on this device. Nothing is sent anywhere and there is no account. Copy your data to keep a backup or move it to another device.</p>
       <div class="row">
         <button class="btn" type="button" id="copy">Copy data</button>
         <button class="btn" type="button" id="download" hidden>Download file</button>
@@ -375,7 +458,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
         </div>
       </div>
       <div class="row">
-        <button class="btn quiet" type="button" id="wipe" style="color:var(--red)">Delete all check-ins</button>
+        <button class="btn quiet" type="button" id="wipe" style="color:var(--red)">Delete all check-ins and thoughts</button>
       </div>
       <div class="confirm" id="wipe-confirm" hidden>
         <p class="small" id="wipe-text">Delete every check-in on this device? This can't be undone.</p>
@@ -392,6 +475,16 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     <p>Open source under the MIT license.</p>
   </footer>
 </main>
+
+<nav class="dock" id="dock" aria-label="Quick check-in">
+  <div class="dock-inner">
+    <div class="dock-now" id="dock-now"><b>How are you?</b><span>Tap a circle to check in</span></div>
+    <button class="mini" type="button" data-zone="red" aria-pressed="false" aria-label="Check in: Red">Red</button>
+    <button class="mini" type="button" data-zone="drive" aria-pressed="false" aria-label="Check in: Drive">Drive</button>
+    <button class="mini" type="button" data-zone="green" aria-pressed="false" aria-label="Check in: Green">Green</button>
+    <button class="dock-grow" type="button" id="dock-grow" aria-label="Show the big circles" hidden>&#8963;</button>
+  </div>
+</nav>
 
 <script>
 (function () {
@@ -472,9 +565,14 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   buttons.forEach(function (b) {
     b.addEventListener("click", function () { choose(b.dataset.zone); });
   });
+  var minis = document.querySelectorAll(".mini");
+  minis.forEach(function (b) {
+    b.addEventListener("click", function () { choose(b.dataset.zone); $("#note").focus({ preventScroll: true }); });
+  });
   function choose(zone) {
     selected = zone;
     buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.zone === zone)); });
+    minis.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.zone === zone)); });
     var panel = $("#panel");
     panel.dataset.zone = zone;
     $("#panel-title").textContent = "Checking in: " + ZONES[zone].name;
@@ -488,6 +586,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     $("#panel").hidden = true;
     $("#note").value = "";
     buttons.forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+    minis.forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
   }
   $("#cancel").addEventListener("click", closePanel);
   $("#panel").addEventListener("submit", function (ev) {
@@ -524,8 +623,58 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     renderWeek(list);
     renderPie(list);
     renderHistory(list, isExample);
-    $("#wipe").disabled = !entries.length;
+    $("#wipe").disabled = !entries.length && !loadThoughts().length;
+    renderDock();
+    renderThoughts();
   }
+
+  // Mini bar: remembers whether the big circles are shrunk; otherwise appears once they scroll away
+  var MINI_KEY = "three-circles:mini";
+  var minimized = false, circlesVisible = true;
+  try { minimized = localStorage.getItem(MINI_KEY) === "1"; } catch (e) {}
+  function renderDock() {
+    var last = entries.slice().sort(function (a, b) { return a.at < b.at ? 1 : -1; })[0];
+    var box = $("#dock-now");
+    box.innerHTML = "";
+    if (last) {
+      var d = new Date(last.at), b = el("b");
+      var dot = el("i", "dot c-" + last.zone);
+      b.appendChild(dot);
+      b.appendChild(document.createTextNode(ZONES[last.zone].name));
+      box.appendChild(b);
+      var lbl = dayLabel(d).split(",")[0], when = dayKey(d) === dayKey(new Date()) ? fmtTime(d) : lbl === "Yesterday" ? "yesterday" : lbl;
+      box.appendChild(el("span", null, "Last check-in " + when));
+    } else {
+      box.appendChild(el("b", null, "How are you?"));
+      box.appendChild(el("span", null, "Tap a circle to check in"));
+    }
+  }
+  function updateDock() {
+    var on = minimized || !circlesVisible;
+    $("#dock").classList.toggle("on", on);
+    $("#dock").inert = !on;
+    document.body.classList.toggle("has-dock", on);
+    document.body.classList.toggle("minimized", minimized);
+    $("#dock-grow").hidden = !minimized;
+  }
+  function setMinimized(on) {
+    minimized = on;
+    try { localStorage.setItem(MINI_KEY, on ? "1" : "0"); } catch (e) {}
+    updateDock();
+  }
+  $("#shrink").addEventListener("click", function () { setMinimized(true); window.scrollTo(0, 0); });
+  $("#dock-grow").addEventListener("click", function () {
+    setMinimized(false);
+    window.scrollTo(0, 0);
+    buttons[0].focus({ preventScroll: true });
+  });
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (list) {
+      circlesVisible = list[list.length - 1].isIntersecting;
+      updateDock();
+    }, { threshold: 0.15 }).observe($(".circles"));
+  }
+  updateDock();
 
   function renderWeek(list) {
     var week = $("#week"); week.innerHTML = "";
@@ -722,9 +871,160 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     });
   }
 
+  // Thoughts: quick notes kept apart from check-ins; a thought can be marked as a blog idea and put in a series
+  var THOUGHTS_KEY = "three-circles:thoughts";
+  var THOUGHTS_SHOWN = 5;
+  var thoughtMemory = [];
+  var thoughtFilter = "all", thoughtsAll = false, editingThought = null;
+  function validThought(t) {
+    return t && typeof t === "object" && typeof t.text === "string" && t.text.trim() && typeof t.at === "string" && !isNaN(Date.parse(t.at));
+  }
+  function cleanThought(t) {
+    var blog = !!t.blog;
+    return { id: t.id || uid(), at: t.at, text: t.text.slice(0, 4000), blog: blog, series: blog && typeof t.series === "string" ? t.series.trim().slice(0, 80) : "" };
+  }
+  function loadThoughts() {
+    try {
+      var raw = localStorage.getItem(THOUGHTS_KEY);
+      var list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list.filter(validThought).map(cleanThought) : [];
+    } catch (e) { storageOk = false; return thoughtMemory.slice(); }
+  }
+  function saveThoughts(list) {
+    thoughtMemory = list.slice();
+    try { localStorage.setItem(THOUGHTS_KEY, JSON.stringify(list)); storageOk = true; }
+    catch (e) { storageOk = false; }
+    $("#storage-notice").hidden = storageOk;
+  }
+  function seriesNames(list) {
+    var seen = {}, out = [];
+    list.forEach(function (t) {
+      var k = t.series.toLowerCase();
+      if (t.series && !seen[k]) { seen[k] = true; out.push(t.series); }
+    });
+    return out.sort(function (a, b) { return a.localeCompare(b); });
+  }
+  function inFilter(t) {
+    if (thoughtFilter === "blog") return t.blog;
+    if (thoughtFilter.indexOf("s:") === 0) return t.series.toLowerCase() === thoughtFilter.slice(2);
+    return true;
+  }
+  function renderThoughts() {
+    var list = loadThoughts().sort(function (a, b) { return a.at < b.at ? 1 : -1; });
+    var names = seriesNames(list);
+    var dl = $("#series-list"); dl.innerHTML = "";
+    names.forEach(function (n) { var o = el("option"); o.value = n; dl.appendChild(o); });
+
+    var blogCount = list.filter(function (t) { return t.blog; }).length;
+    if (!list.some(inFilter)) thoughtFilter = "all";
+    var chips = [["all", "All", list.length]];
+    if (blogCount) chips.push(["blog", "Blog ideas", blogCount]);
+    names.forEach(function (n) {
+      chips.push(["s:" + n.toLowerCase(), n, list.filter(function (t) { return t.series.toLowerCase() === n.toLowerCase(); }).length]);
+    });
+    var f = $("#thought-filters"); f.innerHTML = ""; f.hidden = !blogCount;
+    chips.forEach(function (c) {
+      var b = el("button", "chip"); b.type = "button";
+      b.setAttribute("aria-pressed", String(thoughtFilter === c[0]));
+      b.appendChild(document.createTextNode(c[1]));
+      b.appendChild(el("span", "chip-n", String(c[2])));
+      b.addEventListener("click", function () { thoughtFilter = c[0]; thoughtsAll = false; renderThoughts(); });
+      f.appendChild(b);
+    });
+
+    var matching = list.filter(inFilter);
+    var ul = $("#thought-list"); ul.innerHTML = "";
+    if (!list.length) ul.appendChild(el("li", "thought-empty muted small", "Nothing here yet. Thoughts you save will show up here, newest first."));
+    matching.slice(0, thoughtsAll ? matching.length : THOUGHTS_SHOWN).forEach(function (t) { ul.appendChild(thoughtItem(t)); });
+    var more = $("#thought-more");
+    more.hidden = thoughtsAll || matching.length <= THOUGHTS_SHOWN;
+    more.textContent = "Show all " + matching.length;
+  }
+  function thoughtItem(t) {
+    var d = new Date(t.at);
+    var li = el("li", "entry thought");
+    var main = el("div", "entry-main");
+    var head = el("div", "entry-head");
+    var tm = el("time", null, dayLabel(d) + ", " + fmtTime(d)); tm.dateTime = t.at;
+    head.appendChild(tm);
+    if (t.blog) head.appendChild(el("span", "tag blog", "Blog idea"));
+    if (t.series) head.appendChild(el("span", "tag", "Series: " + t.series));
+    main.appendChild(head);
+    main.appendChild(el("p", "entry-note", t.text));
+    li.appendChild(main);
+
+    var acts = el("div", "thought-actions");
+    var ed = el("button", "remove", "Edit"); ed.type = "button";
+    ed.setAttribute("aria-label", "Edit thought from " + dayLabel(d) + " at " + fmtTime(d));
+    ed.addEventListener("click", function () { editThought(t); });
+    var rm = el("button", "remove", "Remove"); rm.type = "button";
+    rm.setAttribute("aria-label", "Remove thought from " + dayLabel(d) + " at " + fmtTime(d));
+    rm.addEventListener("click", function () {
+      if (!rm.classList.contains("armed")) {
+        rm.classList.add("armed"); rm.textContent = "Tap to confirm";
+        setTimeout(function () { rm.classList.remove("armed"); rm.textContent = "Remove"; }, 4000);
+        return;
+      }
+      if (editingThought === t.id) resetJot();
+      saveThoughts(loadThoughts().filter(function (x) { return x.id !== t.id; }));
+      render();
+    });
+    acts.appendChild(ed); acts.appendChild(rm);
+    li.appendChild(acts);
+    return li;
+  }
+  function showSeriesField() { $("#jot-series-field").hidden = !$("#jot-blog").checked; }
+  function resetJot() {
+    editingThought = null;
+    $("#jot-text").value = ""; $("#jot-blog").checked = false; $("#jot-series").value = "";
+    showSeriesField();
+    $("#jot-save").textContent = "Save thought";
+    $("#jot-cancel").hidden = true;
+  }
+  function editThought(t) {
+    editingThought = t.id;
+    $("#jot-text").value = t.text; $("#jot-blog").checked = t.blog; $("#jot-series").value = t.series;
+    showSeriesField();
+    $("#jot-save").textContent = "Save changes";
+    $("#jot-cancel").hidden = false;
+    $("#jot-msg").textContent = "";
+    $("#jot").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+    $("#jot-text").focus({ preventScroll: true });
+  }
+  var jotTimer = null;
+  function jotMsg(text) {
+    clearTimeout(jotTimer);
+    $("#jot-msg").textContent = text;
+    jotTimer = setTimeout(function () { $("#jot-msg").textContent = ""; }, 3500);
+  }
+  $("#jot-blog").addEventListener("change", showSeriesField);
+  $("#jot-cancel").addEventListener("click", function () { resetJot(); $("#jot-msg").textContent = ""; });
+  $("#thought-more").addEventListener("click", function () { thoughtsAll = true; renderThoughts(); });
+  $("#jot").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var text = $("#jot-text").value.trim();
+    if (!text) { $("#jot-text").focus(); return; }
+    var blog = $("#jot-blog").checked;
+    var series = blog ? $("#jot-series").value.trim().replace(/\s+/g, " ") : "";
+    var list = loadThoughts();
+    // Reuse an existing series' spelling so "notes on anxiety" joins "Notes on anxiety"
+    var same = seriesNames(list).filter(function (n) { return n.toLowerCase() === series.toLowerCase(); })[0];
+    if (same) series = same;
+    var editing = editingThought && list.some(function (x) { return x.id === editingThought; });
+    if (editing) {
+      list = list.map(function (x) { return x.id === editingThought ? Object.assign({}, x, { text: text, blog: blog, series: series }) : x; });
+    } else {
+      list = list.concat([{ id: uid(), at: new Date().toISOString(), text: text, blog: blog, series: series }]);
+    }
+    saveThoughts(list);
+    jotMsg(editing ? "Updated." : blog ? "Saved with your blog ideas." : "Saved. One less thing to hold onto.");
+    resetJot();
+    render(); checkBackup();
+  });
+
   // Data: copy, download, restore, delete all
   function exportText() {
-    return JSON.stringify({ app: "three-circles", version: 1, exportedAt: new Date().toISOString(), entries: load() }, null, 2);
+    return JSON.stringify({ app: "three-circles", version: 1, exportedAt: new Date().toISOString(), entries: load(), thoughts: loadThoughts() }, null, 2);
   }
   $("#copy").addEventListener("click", function () {
     var text = exportText();
@@ -732,7 +1032,8 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     function fallback() { box.value = text; box.hidden = false; box.focus(); box.select(); $("#copy").textContent = "Select and copy the text below"; markBackedUp(); }
     try {
       navigator.clipboard.writeText(text).then(function () {
-        $("#copy").textContent = "Copied " + load().length + " check-ins";
+        var nt = loadThoughts().length;
+        $("#copy").textContent = "Copied " + load().length + " check-ins" + (nt ? " and " + nt + (nt === 1 ? " thought" : " thoughts") : "");
         markBackedUp();
         setTimeout(function () { $("#copy").textContent = "Copy data"; }, 2500);
       }, fallback);
@@ -760,21 +1061,34 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       var added = incoming.filter(function (e) { return !have[e.id]; }).map(function (e) {
         return { id: e.id || uid(), zone: e.zone, at: e.at, note: typeof e.note === "string" ? e.note : "" };
       });
-      entries = current.concat(added); save(entries); render();
-      msg.textContent = added.length ? "Added " + added.length + " check-ins." : "Nothing new to add.";
+      entries = current.concat(added); save(entries);
+      var incomingT = Array.isArray(data.thoughts) ? data.thoughts.filter(validThought) : [];
+      var currentT = loadThoughts();
+      var haveT = {}; currentT.forEach(function (t) { haveT[t.id] = true; });
+      var addedT = incomingT.map(cleanThought).filter(function (t) { return !haveT[t.id]; });
+      if (addedT.length) saveThoughts(currentT.concat(addedT));
+      render();
+      var parts = [];
+      if (added.length) parts.push(added.length + (added.length === 1 ? " check-in" : " check-ins"));
+      if (addedT.length) parts.push(addedT.length + (addedT.length === 1 ? " thought" : " thoughts"));
+      msg.textContent = parts.length ? "Added " + parts.join(" and ") + "." : "Nothing new to add.";
       $("#import-box").value = "";
     } catch (e) {
       msg.textContent = "That doesn't look like Three Circles data. Paste the full text you copied.";
     }
   });
   $("#wipe").addEventListener("click", function () {
-    $("#wipe-text").textContent = "Delete all " + load().length + " check-ins on this device? This can't be undone.";
+    var nc = load().length, nt = loadThoughts().length, parts = [];
+    if (nc) parts.push(nc + (nc === 1 ? " check-in" : " check-ins"));
+    if (nt) parts.push(nt + (nt === 1 ? " thought" : " thoughts"));
+    $("#wipe-text").textContent = "Delete all " + parts.join(" and ") + " on this device? This can't be undone.";
     $("#wipe-confirm").hidden = false;
   });
   $("#wipe-no").addEventListener("click", function () { $("#wipe-confirm").hidden = true; });
   $("#wipe-yes").addEventListener("click", function () {
     entries = []; save(entries);
-    try { localStorage.removeItem(KEY); } catch (e) {}
+    saveThoughts([]); resetJot();
+    try { localStorage.removeItem(KEY); localStorage.removeItem(THOUGHTS_KEY); } catch (e) {}
     $("#wipe-confirm").hidden = true; render();
   });
 
@@ -790,7 +1104,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     $("#backup-nudge").hidden = true;
   }
   function checkBackup() {
-    var list = load();
+    var list = load().concat(loadThoughts());
     if (!list.length || !storageOk) { $("#backup-nudge").hidden = true; return; }
     var st = backupState(), now = Date.now();
     var since = st.last || Math.min.apply(null, list.map(function (e) { return Date.parse(e.at); }));
@@ -1060,10 +1374,15 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
     } catch (e) {}
   }
 
-  // Deep links from notifications: #checkin opens ready to pick a circle, #history shows the list
+  // Deep links: #checkin opens ready to pick a circle, #history shows the list, #thoughts opens ready to jot
   function followLink(kind) {
     var smooth = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-    if (kind === "checkin") {
+    if (kind === "checkin" && minimized) {
+      var dk = $("#dock");
+      dk.classList.remove("nudge"); void dk.offsetWidth; dk.classList.add("nudge");
+      setTimeout(function () { dk.classList.remove("nudge"); }, 3200);
+      minis[0].focus({ preventScroll: true });
+    } else if (kind === "checkin") {
       var c = $(".circles");
       c.scrollIntoView({ behavior: smooth, block: "center" });
       c.classList.remove("nudge"); void c.offsetWidth; c.classList.add("nudge");
@@ -1071,6 +1390,9 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
       buttons[0].focus({ preventScroll: true });
     } else if (kind === "history") {
       $("#hist-h").scrollIntoView({ behavior: smooth, block: "start" });
+    } else if (kind === "thoughts") {
+      $("#thoughts-h").scrollIntoView({ behavior: smooth, block: "start" });
+      $("#jot-text").focus({ preventScroll: true });
     }
   }
   if ("serviceWorker" in navigator && !framed) {
@@ -1087,7 +1409,7 @@ footer { font-size: .85rem; color: var(--muted); display: flex; flex-direction: 
   drainPending();
   function linkFromHash() {
     var kind = location.hash.replace("#", "");
-    if (kind !== "checkin" && kind !== "history") return;
+    if (kind !== "checkin" && kind !== "history" && kind !== "thoughts") return;
     try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
     setTimeout(function () { followLink(kind); }, 150);
   }
